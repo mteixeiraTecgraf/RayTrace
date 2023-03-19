@@ -257,31 +257,32 @@ export class Scene{
         new Material([0,0, 255]),
         new Material([255,255,255]),
     ]
-    obj:Sphere = new Sphere([0,3,0], 1);
+    
+    AddEntity(arg0: { material: Material; shape: Sphere; }) {
+        this.obj.push(arg0);
+    }
+    obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
         
-        var o_c = (sub2(ray.origin, this.obj.center));
-        //console.log("Ray o - c", o_c, ray.origin, ray.direction)
-        var a = dot(ray.direction, ray.direction);
-        var b = dot(ray.direction, o_c)*2;
-        var c = dot(o_c,o_c) -(this.obj.Radius*this.obj.Radius);
-        //console.log("abc", a,b,c)
-        var sols = sollution([a,b,c])
-        var posSols =sols.filter(s=>s>0);
-        if(posSols.length<=0)
-        {
-            return ;
-        }
-        var t = Math.min(...posSols);
-        var p = scale(ray.direction, t);
+        var t = Infinity;
+        var p:vec3 = [0,0,0];
+        var n:vec3 = [0,0,0];
+        var backface=false;
+        var material:Material = new Material([0,0,0]);
+        var bestHit:Hit|undefined = undefined; 
+        this.obj.forEach(obj => {
+            
+            var hit = obj.shape.ComputeIntersection(ray);
+            if(hit && (hit.t < (bestHit?.t??Infinity)))
+            {
+                //console.log("Hit", hit);
+                bestHit = hit;
+                bestHit.material = obj.material;
 
-        return <Hit>{
-            material:this.materials[0],
-            t: t,
-            p: p,
-            n: normalize(sub2(p,this.obj.center)),
-            backface:(posSols.length == 1)
-        }
+            }
+            
+        });
+        return bestHit;
 
         //var c = 
         var i = ray.origin[0]*this.W;
@@ -340,9 +341,49 @@ export class Scene{
     
     }
 }
-export class Shape{
-
+export abstract class Shape {
+    abstract ComputeIntersection(ray:Ray):Hit|undefined;
 }
-export class Sphere{
-    constructor(public center:vec3, public Radius:number){}
+export class Sphere implements Shape{
+    type="Sphere";
+    constructor(public center:vec3, public Radius:number){
+        
+        
+    }
+
+    ComputeIntersection(ray:Ray){
+        var o_c = (sub2(ray.origin, this.center));
+        //console.log("Ray o - c", o_c, ray.origin, ray.direction)
+        var a = dot(ray.direction, ray.direction);
+        var b = dot(ray.direction, o_c)*2;
+        var c = dot(o_c,o_c) -(this.Radius*this.Radius);
+        //console.log("abc", a,b,c)
+        var sols = sollution([a,b,c])
+        var posSols =sols.filter(s=>s>0);
+        if(posSols.length<=0)
+        {
+            return ;
+        }
+        //console.log("Intersection", a,b,c)
+        var t1 = Math.min(...posSols);
+        //if(t < t1)return;
+        var t = t1;
+        var p = scale(ray.direction, t);
+        var backface = (posSols.length == 1)
+        var n= normalize(sub2(p,this.center));
+        //var material = obj.material
+        
+        return <Hit>{
+            material:undefined,
+            t: t,
+            p: p,
+            n: n,
+            backface:backface,
+        }
+    }
+    
+}
+export class Plane{
+    type="Plane";
+    constructor(public normal:vec3, public point:vec3){}
 }

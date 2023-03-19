@@ -1,5 +1,5 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { Camera, Film, Scene } from './model/Film';
+import { Camera, Film, Material, Scene, Sphere } from './model/Film';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -51,6 +51,9 @@ export class AppComponent implements OnInit{
       //console.log("mfyImageData", myImageData)
     //this.ctx.putImageData(myImageData,0,0);
     //scene.testCameraPixels();
+    var material = new Material([255,0,0]);
+    //scene.AddLight({material: material, shape:new Sphere([0,3,0], 1)})
+    scene.AddEntity({material: material, shape:new Sphere([0,3,0], 1)})
     scene.Render(this.ctx);
   }
 
