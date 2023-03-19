@@ -148,7 +148,7 @@ export class Light{
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
         var l = normalize(sub2(this.Position, p))
         var r = distance(this.Position, p);
-        var Li = scale(this.Potencia,1/(r*r))
+        var Li = scale(this.Potencia,1/(r*r*0.4))
         
         //console.log("Radiance", this.Potencia, l, r,Li, r, 1/(r*r*0.5));
         return {li:Li, l:l}
@@ -164,13 +164,28 @@ export class Material{
         //vec3.normalize(v,)
         scene.lightSources.forEach(ls=>{
             var n = hit!.n;
+            var ray:Ray = {origin:ls.Position, direction:normalize(sub2(hit.p, ls.Position))};
+
+            scene.obj.forEach(ob=>{
+                var lighthit = ob.shape.ComputeIntersection(ray);
+                if(lighthit && lighthit.t>0.0001 && lighthit.t < hit.t-0.001)
+                {
+                    //shadow
+                    return;
+                }
+            });
             var {li,l} = ls.Radiance(scene, hit!.p, n)
+            var ml = scale(l,-1);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
-            //console.log(li,l, contrib, hit, dot(l,n))
+            if(li[0]>0.5)
+            {
+                //console.log(li,l,ml, contrib, this.matColorDiff, hit, dot(l,n))
+
+            }
             add(contrib);
-            var r = reflect(scale(l,-1), n);
+            var r = reflect(ml, n);
             //console.log(li,l, contrib, hit, r, n, dot(r,v))
-            var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 30)*255);
+            var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
             //console.log("shine", c2, c);
             add(c2);
             //console.log("shine", c2, c);
@@ -214,6 +229,7 @@ export class Scene{
                 
                 //console.log("Ray",i,j, ray)
                 var c:vec3 = this.TraceRay(ray);
+                //console.log("Pixel", i,j,c)
                 film.SetPixelValue(i,j,c);
                 
             }
@@ -237,7 +253,7 @@ export class Scene{
             {
                 var c = hit.material.Eval(this, hit, ray.origin);
                 
-                console.log("Hit Some ", c);
+                //console.log("Hit Some ", c, hit);
                 return c;
             }
 
@@ -246,11 +262,10 @@ export class Scene{
         return [0,0,0];
             //return this.temp(ray);
     }
-    lightSources:Light[]=[
-        new Light([-0.5,1,-3]), 
-        new Light([-0.5,1,1]), 
-        new Light([2.5,0,1])
-    ]
+    AddLight(light:Light) {
+        this.lightSources.push(light);
+    }
+    lightSources:Light[]=[    ]
     materials:Material[] = [
         new Material([255,0,0]), 
         new Material([0,255,0]),
@@ -258,7 +273,7 @@ export class Scene{
         new Material([255,255,255]),
     ]
     
-    AddEntity(arg0: { material: Material; shape: Sphere; }) {
+    AddEntity(arg0: { material: Material; shape: Shape; }) {
         this.obj.push(arg0);
     }
     obj:{material:Material,shape:Shape}[] =[]
@@ -273,11 +288,11 @@ export class Scene{
         this.obj.forEach(obj => {
             
             var hit = obj.shape.ComputeIntersection(ray);
-            if(hit && (hit.t < (bestHit?.t??Infinity)))
+            if(hit && (hit?.t > 0.0000005) && (hit.t < (bestHit?.t??Infinity)))
             {
-                //console.log("Hit", hit);
                 bestHit = hit;
                 bestHit.material = obj.material;
+                //console.log("Hit", bestHit);
 
             }
             
@@ -368,7 +383,7 @@ export class Sphere implements Shape{
         var t1 = Math.min(...posSols);
         //if(t < t1)return;
         var t = t1;
-        var p = scale(ray.direction, t);
+        var p = scale(ray.direction, t*0.999999);
         var backface = (posSols.length == 1)
         var n= normalize(sub2(p,this.center));
         //var material = obj.material
@@ -383,7 +398,29 @@ export class Sphere implements Shape{
     }
     
 }
-export class Plane{
+export class Plane implements Shape{
     type="Plane";
     constructor(public normal:vec3, public point:vec3){}
+    ComputeIntersection(ray: Ray): Hit | undefined {
+        var d2 = dot(ray.direction, this.normal)
+        if(d2>= 0.000001 && d2<=0.000001)
+        {
+            //parallel
+            return ;
+        }
+        var num = dot(sub2(this.point, ray.origin), this.normal)
+        var t = num/d2;
+        var p = scale(ray.direction, t*0.999999);
+        var backface = false;
+        var n= this.normal;
+            //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
+        return <Hit>{
+            material:undefined,
+            t: t,
+            p: p,
+            n: n,
+            backface:backface,
+        }
+    }
+    
 }

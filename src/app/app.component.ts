@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { Camera, Film, Material, Scene, Sphere } from './model/Film';
+import { glMatrix, mat2, vec3 } from 'gl-matrix';
+import { Camera, Film, Light, Material, Plane, Scene, Sphere } from './model/Film';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -41,19 +42,32 @@ export class AppComponent implements OnInit{
     //return;
 
     var film = Film.Make([W,H], 0);
-    var camera = new Camera([1,0,0],[0,0,1], [0,-1,0],60, 39, W/H )
+    var camera = new Camera([1,0,0],[0,0,1], [0,-1,0],90, 39, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    
-    var scene = new Scene(film, new Camera([1,0,0],[0,0,1], [0,-1,0],60, 1, W/H ));
+    var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
+    var rot = -6
+    u = vec3.rotateX([0,0,0],u, [0,0,0], Math.PI*rot/180)
+    v = vec3.rotateX([0,0,0],v, [0,0,0], Math.PI*rot/180)
+    w = vec3.rotateX([0,0,0],w, [0,0,0], Math.PI*rot/180)
+    var scene = new Scene(film, new Camera(u,v,w,80, 5, W/H ));
     //var scene = new Scene(film, );
     
       //console.log("mfyImageData", myImageData)
     //this.ctx.putImageData(myImageData,0,0);
     //scene.testCameraPixels();
     var material = new Material([255,0,0]);
+    var material2 = new Material([255,255,255]);
     //scene.AddLight({material: material, shape:new Sphere([0,3,0], 1)})
+    scene.AddLight(new Light([-0.5,1,-3]))
+    scene.AddLight(new Light([-0.5,1,1]))
+      //new Light([0,5,0]), 
+    scene.AddLight(new Light([2.5,0,10]),)
+    
     scene.AddEntity({material: material, shape:new Sphere([0,3,0], 1)})
+    ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
+    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-0.8])})
     scene.Render(this.ctx);
   }
 
