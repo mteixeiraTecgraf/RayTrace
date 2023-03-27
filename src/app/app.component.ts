@@ -1,6 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
-import { Camera, Film, Light, Material, Plane, Scene, Sphere } from './model/Film';
+import { Camera, Film, Light, Material, Plane, Scene, Sphere, Transform } from './model/Film';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -36,18 +36,39 @@ export class AppComponent implements OnInit{
     this.initScene();
   }
   scene:Scene;
+  W = 400;
+  H = 300;
+  angle = 80;
   initScene(){
-    const W = this.ctx.canvas.width;
-    const H = this.ctx.canvas.height;
-    console.log("testImage", W, H);
+    this.testScene1();
+  }
+  
+  testScene1(){
+    //const W = this.ctx.canvas.width;
+    //const H = this.ctx.canvas.height;
+    if(false)
+    {
+      this.W=10;
+      this.H=10;
+      this.angle = 10;
+      
+    }
+    this.ctx.canvas.width = this.W
+    this.ctx.canvas.height = this.H
+    console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([W,H], 0);
-    var camera = new Camera([1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
+    var film = Film.Make([this.W,this.H], 0);
+    //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
+    var ambLightPot = 0.2;
+    var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
-    var scene = new Scene(film, new Camera(u,v,w,80, 5, W/H ), [0.2,0.2,0.2]);
+    var camera = new Camera([0,-1,-0.4+dz,],u,v,w,this.angle, 5, this.W/this.H );
+
+    //camera.RotateX(-25.3);
+    var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
     this.scene = scene;
     //var scene = new Scene(film, );
     
@@ -58,12 +79,20 @@ export class AppComponent implements OnInit{
     var material2 = new Material([1,1,1]);
     //scene.AddLight({material: material, shape:new Sphere([0,3,0], 1)})
     //scene.AddLight(new Light([-0.5,1,-3]))
-    scene.AddLight(new Light([-0.5,2,1.5]))
-    scene.AddLight(new Light([-1,1,0]))
+    //scene.AddLight(new Light([-0.5,2,1.5+dz]))
+    //scene.AddLight(new Light([-0.6,0.8,-0.3+dz]))
+    scene.AddLight(new Light([-2,1.5,4.0+dz]))
+    //return;
       //new Light([0,5,0]), 
     //scene.AddLight(new Light([2.5,0,10]),)
     
-    scene.AddEntity({material: material, shape:new Sphere([0,4,0], 1)})
+    scene.AddEntity({material: material, shape:new Sphere(), 
+      //[0,2,-1+dz], 1
+      transform:Transform.fromScaleAndTranslation([0,2,dz],)
+      //transform:new Transform()
+    })
+    
+    
     //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([0,5,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([2,5,0], 1)})
@@ -71,11 +100,104 @@ export class AppComponent implements OnInit{
     //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
     ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
-    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1])})
+    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
     //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
     scene.Render(this.ctx);
   }
+  testScene2(){
+    //const W = this.ctx.canvas.width;
+    //const H = this.ctx.canvas.height;
+    if(false)
+    {
+      this.W=10;
+      this.H=10;
+      this.angle = 10;
+      
+    }
+    this.ctx.canvas.width = this.W
+    this.ctx.canvas.height = this.H
+    console.log("testImage", this.W, this.H);
+    //return;
 
+    var film = Film.Make([this.W,this.H], 0);
+    //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
+
+    //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
+    var ambLightPot = 0.2;
+    var dz = 1;
+    var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
+    var camera = new Camera([0,0,dz,],u,v,w,this.angle, 5, this.W/this.H );
+
+    //camera.RotateX(-25.3);
+    var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
+    this.scene = scene;
+    
+    scene.AddLight(new Light([0,2,dz]))
+    scene.Render(this.ctx);
+  }
+
+  testScene3(){
+    //const W = this.ctx.canvas.width;
+    //const H = this.ctx.canvas.height;
+      this.angle = 100;
+    if(false)
+    {
+      this.W=10;
+      this.H=10;
+      this.angle = 10;
+      
+    }
+    this.ctx.canvas.width = this.W
+    this.ctx.canvas.height = this.H
+    console.log("testImage", this.W, this.H);
+    //return;
+
+    var film = Film.Make([this.W,this.H], 0);
+    //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
+
+    //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
+    var ambLightPot = 0.2;
+    var dz = 0;
+    var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
+    var camera = new Camera([0,0,dz,],u,v,w,this.angle, 5, this.W/this.H );
+
+    camera.RotateX(-49.3);
+    var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
+    this.scene = scene;
+    //var scene = new Scene(film, );
+    
+      //console.log("mfyImageData", myImageData)
+    //this.ctx.putImageData(myImageData,0,0);
+    //scene.testCameraPixels();
+    var material = new Material([1,0,0]);
+    var material2 = new Material([1,1,1]);
+    //scene.AddLight({material: material, shape:new Sphere([0,3,0], 1)})
+    //scene.AddLight(new Light([-0.5,1,-3]))
+    //scene.AddLight(new Light([-0.5,2,1.5+dz]))
+    //scene.AddLight(new Light([-0.6,0.8,-0.3+dz]))
+    scene.AddLight(new Light([0,1,-0+dz]))
+    //return;
+      //new Light([0,5,0]), 
+    //scene.AddLight(new Light([2.5,0,10]),)
+    
+    scene.AddEntity({material: material, shape:new Sphere(), 
+      //[0,2,-1+dz], 1
+      transform:Transform.fromScaleAndTranslation([0,2,10+-1+dz],)
+      //transform:new Transform()
+    })
+    
+    
+    //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([0,5,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([2,5,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([-2,7,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
+    ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
+    //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
+    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
+    //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
+    scene.Render(this.ctx);
+  }
   animate(){
     this.scene.camera.RotateX(15*Math.random()-7)
     this.scene.Render(this.ctx)

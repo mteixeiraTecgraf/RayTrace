@@ -3,6 +3,13 @@ import * as GLMat from  "gl-matrix";
 import { TitleStrategy } from "@angular/router";
 
 const verbose = false;
+const verbose2 = false;
+const verbose3 = false;
+const LIGHT_FACTOR = 0.3;
+const SHINESS = 10;
+const SAMPLE_COUNT = 8 ;
+
+const EPSILON = Math.pow(10,-2);
 function sollution([a,b,c]:vec3)
 {
     var delta = b*b -4*a*c;
@@ -11,6 +18,14 @@ function sollution([a,b,c]:vec3)
     if(verbose)console.log("Calc Solution", -b, delta, 2*a)
     return [sol1,sol2];
     
+}
+function createMat4(c1:vec3, c2:vec3, c3:vec3,c4:vec3):GLMat.mat4
+{
+    return [
+        c1[0],c1[1],c1[2],0,
+        c2[0],c2[1],c2[2],0,
+        c3[0],c3[1],c3[2],0,
+        c4[0],c4[1],c4[2],1,]
 }
 
 function add2(v1:vec3, v2:vec3)
@@ -31,7 +46,8 @@ function dot(v1:vec3, v2:vec3)
 }
 function reflect(d:vec3, n:vec3){
     //d−2(d⋅n)n
-    return sub2(d, scale(n,2*dot(d,n)))
+    //return sub2(d, scale(n,2*dot(d,n)))
+    return sub2(scale(n,2*dot(d,n)),d)
 }
 function scale(v1:vec3, n:number)
 {
@@ -48,6 +64,10 @@ function normalize(v:vec3)
 function inverse(v:GLMat.mat4)
 {
     return GLMat.mat4.invert([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
+}
+function transpose(v:GLMat.mat4)
+{
+    return GLMat.mat4.transpose([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
 }
 function toVec4(v:vec3):vec4{
     return [v[0],v[1],v[2],1];
@@ -71,8 +91,15 @@ const setPixel = (myImageData:any, x:number, y:number, width:number, height:numb
     return [red, red + 1, red + 2, red + 3];
   };
 export class Film{
+    GetSampleCount()
+    {
+        return SAMPLE_COUNT;
+    }
+    GetRandom(){
+        return Math.random();
+    }
     GetSample(i: number, j: number): vec2 {
-        return [i/this.W, j/this.H];
+        return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
     }
     public static Make(resolution: vec2, value:number, ctx?:CanvasRenderingContext2D)
     {
@@ -119,9 +146,9 @@ export class Film{
 
 export class Camera{
     toWorldMatric:GLMat.mat4 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-    constructor(public u:vec3, public v: vec3, public w: vec3, public angle:number, public distance:number, public ratio:number)
+    constructor(public o:vec3, public u:vec3, public v: vec3, public w: vec3, public angle:number, public distance:number, public ratio:number)
     {
-        this.lookAt(u,v,w);   
+        this.lookAt(u,v,w,o);   
     }
 
     RotateX(rot:number)
@@ -130,16 +157,16 @@ export class Camera{
         this.v = vec3.rotateX([0,0,0],this.v, [0,0,0], Math.PI*rot/180)
         this.w = vec3.rotateX([0,0,0],this.w, [0,0,0], Math.PI*rot/180)
 
-        this.lookAt(this.u, this.v, this.w);
+        this.lookAt(this.u, this.v, this.w, this.o);
     }
-    lookAt(u:vec3, v: vec3, w: vec3)
+    lookAt(u:vec3, v: vec3, w: vec3, o:vec3)
     {
-        this.toWorldMatric = [
-            u[0],u[1],u[2],0,
-            v[0],v[1],v[2],0,
-            w[0],w[1],w[2],0,
-            0   , 0  , 0  ,1,
-        ]
+        //this.toWorldMatric = inverse(GLMat.mat4.lookAt(GLMat.mat4.create(),o, sub2(o,w), v))
+        
+        //GLMat.mat4.fromRotationTranslation(GLMat.mat4.create(),)
+        this.toWorldMatric = createMat4(u, v, w, o)
+        
+       console.log("LookAt", this.toWorldMatric,inverse(this.toWorldMatric),GLMat.mat4.create());
     }
     ToCameraPosition(v:GLMat.vec3){
 
@@ -157,16 +184,18 @@ export class Camera{
         var du = dv*this.ratio;
         var p:vec3 = [-du + 2*du*nx, -dv + 2*dv*ny, -f];
         var o = this.ToWorldPosition([0,0,0]);
+        if(verbose)console.log("Origin",o)
         var t = this.ToWorldPosition(p);
-        return {origin:o,direction: normalize(sub2(t, o))}
+        if(verbose)console.log("point",t)
+        return {origin:o,direction: normalize(sub2(t, o)), camera:true}
     }
 
 }
 export class Light{
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
         var l = normalize(sub2(this.Position, p))
-        var r = distance(this.Position, p);
-        var Li = scale(this.Potencia,1/(r*r*0.3))
+        var r = distance(p,this.Position);
+        var Li = scale(this.Potencia,1/(r*r*LIGHT_FACTOR))
         
         //console.log("Radiance", this.Potencia, l, r,Li, r, 1/(r*r*0.5));
         return {li:Li, l:l}
@@ -177,46 +206,43 @@ export class Light{
 export class Material{
     constructor(private matColorDiff:vec3){}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
-        if(verbose)console.log("Evaluating material");
+        if(verbose2) console.log("Evaluating material");
         let c:vec3 = mul(scene.ambientLight, this.matColorDiff);
-        let v:vec3 = normalize(vec3.sub([0,0,0], origin, hit!.p))
+        let v:vec3 = normalize(sub2(origin, hit!.p))
         //vec3.normalize(v,)
         scene.instances.filter(i=>Boolean(i.light)==true).forEach(instance=>{
             var ls = instance.light!;
             var n = hit!.n;
-            var ray:Ray = {origin:hit.p, direction:normalize(sub2(ls.Position,hit.p))};
+            var rayo = hit.p; 
+            var rayd = normalize(sub2(ls.Position,hit.p)); 
+            rayo = add2(rayo, scale(rayd, EPSILON))
+            var ray:Ray = {origin:rayo, direction:rayd, camera:false};
 
-            if(verbose)console.log("Computing intersection with same light", hit, ray);
+            if(verbose2)console.log("Computing intersection with same light", hit, ray);
             var hit2 = scene.ComputeIntersection(ray);
-            if((!hit2) || (!hit2.light) ||  (hit2.light != ls))
+            if(verbose2) console.log("Hit2", ray, hit2, hit.light, ls)
+            if((hit2?.light != ls) && (hit2?.material != this))
             {
-                if(verbose)console.log("Hit2", ray, hit2, hit.light, ls)
+                if(verbose3) 
+                console.log("Hit2", ray, hit2, hit.light, ls)
                 return;
             }
-            /*
-            scene.obj.forEach(ob=>{
-                var lighthit = ob.shape.ComputeIntersection(ray);
-                if(lighthit && lighthit.t>0.0001 && (lighthit.t < (hit.t-0.001)))
-                {
-                    //shadow
-                    return;
-                }
-            });
-            */
             var {li,l} = ls.Radiance(scene, hit!.p, n)
             var ml = scale(l,-1);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
+            //console.log("Contrib",contrib, li, l,n,dot(l,n))
             if(li[0]>0.5)
             {
                 //console.log(li,l,ml, contrib, this.matColorDiff, hit, dot(l,n))
 
             }
             add(contrib);
-            var r = reflect(ml, n);
+            var r = reflect(l, n);
             //console.log(li,l, contrib, hit, r, n, dot(r,v))
             //var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
-            var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10));
-            //console.log("shine", c2, c);
+            //console.log("Dot",dot(r,v))
+            var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), SHINESS));
+            if(verbose3)console.log("shine", c2, c, r, v, dot(r,v), "L",l,ml, ls, n,hit);
             add(c2);
             //console.log("shine", c2, c);
             //TODO: FALTA SPEC
@@ -225,13 +251,17 @@ export class Material{
         return c;
         function add(color:vec3)
         {
-            c = vec3.min([1,1,1], [255,255,255], add2(c, color));
+            c = vec3.min([1,1,1], [1,1,1], add2(c, color));
         }
     }
     P: vec3;
 
 }
-export type Ray = {origin:vec3, direction:vec3};
+export type Ray = {origin:vec3, direction:vec3, camera:boolean};
+function getT(ray:Ray, point: vec3)
+{
+    return dot(sub2(point, ray.origin), ray.direction);
+}
 export type Hit = {
     n:vec3;
     t: number;
@@ -247,20 +277,26 @@ export class Scene{
     get H(){return this.Film.H}
     Render(Context:CanvasRenderingContext2D){
         const film = this.Film
+        const count = film.GetSampleCount();
         for(let i = 0; i<this.W;i++ )
         {
         
             //console.log("Pixel", i)
             for(let j = 0; j<this.H;j++ )
             {
-                
-                var sample:vec2 = film.GetSample(i,j);
-                var ray:Ray = this.camera.GenerateRay(sample);
-                
-                //console.log("Ray",i,j, ray)
-                var c:vec3 = this.TraceRay(ray);
-                //console.log("Pixel", i,j,c)
-                film.SetPixelValue(i,j,c);
+                var c:vec3 = [0,0,0]
+                for(let s = 0; s<count; s++)
+                {
+
+                    
+                    var sample:vec2 = film.GetSample(i,j);
+                    var ray:Ray = this.camera.GenerateRay(sample);
+                    
+                    if(verbose2) console.log("Ray",i,j, ray)
+                    c = add2(c,this.TraceRay(ray));
+                    if(verbose2) console.log("Pixel", i,j,c)
+                }
+                film.SetPixelValue(i,j,scale(c, 1/count));
                 
             }
         }
@@ -283,6 +319,7 @@ export class Scene{
             }
             else if(hit.material)
             {
+                if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
                 
                 //console.log("Hit Some ", c, hit);
@@ -297,7 +334,13 @@ export class Scene{
     AddLight(light:Light) {
         //this.lightSources.push(light);
         light.Potencia = sub2(light.Potencia, this.ambientLight);
-        this.AddEntity({light, shape:new Sphere(light.Position, 0.02)});
+        const scale = 0.02;
+        const position =light.Position;
+        //const position:vec3 = [0,2,1]
+        var transform = Transform.fromScaleAndTranslation(position,scale,scale,scale);
+        //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
+        this.AddEntity({light, shape:new Sphere(), transform});
+        
 
     }
     //lightSources:Light[]=[    ]
@@ -308,11 +351,11 @@ export class Scene{
         new Material([1,1,1]),
     ]
     
-    AddEntity(arg0: { material?: Material; light?:Light, shape: Shape; }) {
+    AddEntity(arg0: Instance) {
         //this.obj.push(arg0);
         this.instances.push(arg0)
     }
-    instances:{material?:Material, light?:Light,shape:Shape}[] =[]
+    instances:Instance[] =[]
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
         
@@ -325,18 +368,26 @@ export class Scene{
         this.instances.forEach(obj => {
             
             if(verbose)console.log("Computing intersections", ray, obj);
-            var hit = obj.shape.ComputeIntersection(ray);
+            var tRay = obj.transform.toLocalRay(ray);
+            var thit = obj.shape.ComputeIntersection(tRay);
+            //console.log("ComputeIntersection", thit);
+            var hit = obj.transform.toGlobalHit(thit);
+            if(hit) hit.t = getT(ray, hit!.p);
             if(verbose)console.log("Hit Object", hit, obj);
-            if(hit && (hit?.t > 0.0000005) && (hit.t < (bestHit?.t??Infinity)))
+            if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
             {
                 bestHit = hit;
                 bestHit.material = obj.material;
                 bestHit.light = obj.light;
+                if(verbose3)
+                if(!ray.camera)
+                    console.log("Hit Object", bestHit, obj);
                 //console.log("Hit", bestHit);
 
             }
             
         });
+        if(verbose3)console.log("Hit Object Final", bestHit);
         return bestHit;
 
         //var c = 
@@ -396,15 +447,66 @@ export class Scene{
     
     }
 }
+type Instance = {material?:Material, light?:Light,shape:Shape, transform:Transform};
 export abstract class Shape {
     abstract ComputeIntersection(ray:Ray):Hit|undefined;
 }
+export class Transform{
+    toLocal(origin: vec3) {
+        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.inverse))
+    }
+    toGlobal(origin: vec3) {
+        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.matrix))
+    }
+    toGlobalT(origin: vec3) {
+        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), transpose(this.matrix)))
+    }
+    toLocalRay(ray:Ray):Ray
+    {
+        //return {origin:this.toLocal(ray.origin), direction:normalize(this.toLocal(ray.direction))}
+        return {...ray, origin:this.toLocal(ray.origin)}
+    }
+    toGlobalRay(ray:Ray):Ray
+    {
+        return {...ray, origin:this.toGlobal(ray.origin)}
+        //return {origin:this.toGlobal(ray.origin), direction:this.toGlobal(ray.direction)}
+    }
+    
+    toGlobalHit(hit:Hit|undefined):Hit|undefined
+    {
+        if(hit)
+        {
+
+            return <Hit>{
+                ... hit,
+                p:this.toGlobal(hit.p),
+                n:this.toGlobalT(hit.n),
+                
+            }
+        }
+        return undefined;
+    }
+    public inverse:GLMat.mat4
+    constructor(public matrix:GLMat.mat4 = GLMat.mat4.create())
+    {
+        this.inverse = inverse(matrix);
+        
+        console.log("MAtrix", matrix, this.inverse)
+    }
+    static fromScaleAndTranslation(translation:vec3=[0,0,0], sx:number=1,sy:number=1,sz:number=1)
+    {
+        var mat = createMat4([sx,0,0], [0, sy,0], [0,0,sz], translation)
+        return new Transform(mat);
+    }
+
+}
 export class Sphere implements Shape{
     type="Sphere";
-    constructor(public center:vec3, public Radius:number){
-        
+    constructor( ){
         
     }
+    private center:vec3 = [0,0,0]
+    private Radius = 1;
 
     //cache:{[number]}
     o_c: vec3 = [-12345,-1,-1];
@@ -413,6 +515,7 @@ export class Sphere implements Shape{
         //if(this.o_c[0]==-12345)
         {
             this.o_c = (sub2(ray.origin, this.center));
+            //this.o_c = (sub2(this.center, ray.origin));
             this.c = dot(this.o_c,this.o_c) -(this.Radius*this.Radius);
         }
         //console.log("Ray o - c", o_c, ray.origin, ray.direction)
@@ -422,16 +525,18 @@ export class Sphere implements Shape{
         //console.log("abc", a,b,c)
         var sols = sollution([a,b,c])
         if(verbose) console.log("Solutions", sols,a,b,c)
-        var posSols =sols.filter(s=>s>0.00005);
+        var posSols =sols.filter(s=>s>EPSILON);
         if(posSols.length<=0)
         {
             return ;
         }
+        if(verbose) console.log("Solutions", sols,a,b,c)
         //console.log("Intersection", a,b,c)
         var t1 = Math.min(...posSols);
         //if(t < t1)return;
         var t = t1;
-        var p = scale(ray.direction, t*0.999999);
+        var p = add2(ray.origin,scale(ray.direction, t));
+        //var p = scale(ray.direction, t);
         var backface = (posSols.length == 1)
         var n= normalize(sub2(p,this.center));
         //var material = obj.material
@@ -451,15 +556,15 @@ export class Plane implements Shape{
     constructor(public normal:vec3, public point:vec3){}
     ComputeIntersection(ray: Ray): Hit | undefined {
         var d2 = dot(ray.direction, this.normal)
-        if(d2>= 0.000001 && d2<=0.000001)
+        if(d2>= -0.000001 && d2<=0.000001)
         {
             //parallel
             return ;
         }
         var num = dot(sub2(this.point, ray.origin), this.normal)
         var t = num/d2;
-        var p = scale(ray.direction, t*0.999999);
-        var backface = false;
+        var p = add2(this.point,scale(ray.direction, t));
+        var backface = d2>0;
         var n= this.normal;
             //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
         return <Hit>{
