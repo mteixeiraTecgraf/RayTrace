@@ -8,6 +8,7 @@ const verbose3 = false;
 const LIGHT_FACTOR = 0.3;
 const SHINESS = 10;
 const SAMPLE_COUNT = 8 ;
+const LIMITS = [0.68,0.69, 0.15, 0.16];
 
 const EPSILON = Math.pow(10,-2);
 function sollution([a,b,c]:vec3)
@@ -39,6 +40,15 @@ function sub2(v1:vec3, v2:vec3)
 function mul(v1:vec3, v2:vec3)
 {
     return vec3.mul([0,0,0], v1, v2);
+}
+function mulMat(v1:GLMat.mat4, v2:GLMat.mat4)
+{
+    return GLMat.mat4.multiply(GLMat.mat4.create(), v1, v2);
+}
+function getTranslation(v1:GLMat.mat4)
+{
+    return GLMat.mat4.getTranslation(GLMat.vec3.create(), v1);
+    //return <vec3>[0,0,0]//GLMat.mat4.getTranslation(GLMat.vec3.create(), v1);
 }
 function dot(v1:vec3, v2:vec3)
 {
@@ -206,25 +216,29 @@ export class Light{
 export class Material{
     constructor(private matColorDiff:vec3){}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
-        if(verbose2) console.log("Evaluating material");
+        var v2 = sampleBetween2(scene.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3])
+        if( verbose2) 
+            console.log("Evaluating material", scene.sample,v2);
         let c:vec3 = mul(scene.ambientLight, this.matColorDiff);
         let v:vec3 = normalize(sub2(origin, hit!.p))
+        var n = hit!.n;
+        //return c;
+        //return mul(add2([1,-1,1],n), [1/2,-1/2,1/2]);
         //vec3.normalize(v,)
         scene.instances.filter(i=>Boolean(i.light)==true).forEach(instance=>{
             var ls = instance.light!;
-            var n = hit!.n;
             var rayo = hit.p; 
             var rayd = normalize(sub2(ls.Position,hit.p)); 
             rayo = add2(rayo, scale(rayd, EPSILON))
             var ray:Ray = {origin:rayo, direction:rayd, camera:false};
 
-            if(verbose2)console.log("Computing intersection with same light", hit, ray);
+            if(v2 || verbose2)console.log("Computing intersection with same light", hit, ray);
             var hit2 = scene.ComputeIntersection(ray);
-            if(verbose2) console.log("Hit2", ray, hit2, hit.light, ls)
+            if(v2 || verbose2) console.log("Hit2", ray, hit2, hit.light, sub2(ls.Position,hit.p))
             if((hit2?.light != ls) && (hit2?.material != this))
             {
-                if(verbose3) 
-                console.log("Hit2", ray, hit2, hit.light, ls)
+                if(v2 || verbose3) 
+                console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
                 return;
             }
             var {li,l} = ls.Radiance(scene, hit!.p, n)
@@ -257,6 +271,31 @@ export class Material{
     P: vec3;
 
 }
+
+function sampleBetween(ray:Ray, xmin:number,xmax:number,ymin:number,ymax:number)
+{
+    var sample = (<any>ray)['sample'];
+    if(!sample) return false
+    return sampleBetween2(sample, xmin, xmax,ymin,ymax)
+}
+function sampleBetween2(sample:vec2, xmin:number,xmax:number,ymin:number,ymax:number)
+{
+    var check = (
+        ((sample[0] > xmin) && (sample[0] < xmax)) &&
+        ((sample[1] > ymin) && (sample[1] < ymax)) &&
+        true
+        );
+    //if(check)
+    //console.log("ymax",sample)
+    return check? true:false;
+    //if(sample)
+    {
+        return check;
+        
+    }
+    return false;
+}
+
 export type Ray = {origin:vec3, direction:vec3, camera:boolean};
 function getT(ray:Ray, point: vec3)
 {
@@ -275,6 +314,10 @@ export class Scene{
     constructor(private Film:Film, public camera:Camera, public ambientLight:vec3){}
     get W(){return this.Film.W}
     get H(){return this.Film.H}
+    sample:vec2 = [0,0,]
+    get Sample(){
+        return this.sample;
+    }
     Render(Context:CanvasRenderingContext2D){
         const film = this.Film
         const count = film.GetSampleCount();
@@ -287,11 +330,11 @@ export class Scene{
                 var c:vec3 = [0,0,0]
                 for(let s = 0; s<count; s++)
                 {
-
                     
                     var sample:vec2 = film.GetSample(i,j);
+                    this.sample = sample;
                     var ray:Ray = this.camera.GenerateRay(sample);
-                    
+                    (<any>ray)['sample']=sample;
                     if(verbose2) console.log("Ray",i,j, ray)
                     c = add2(c,this.TraceRay(ray));
                     if(verbose2) console.log("Pixel", i,j,c)
@@ -319,14 +362,21 @@ export class Scene{
             }
             else if(hit.material)
             {
+        
                 if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
                 
+                if(true && sampleBetween(ray, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]))
+                    return [0,1,0];
                 //console.log("Hit Some ", c, hit);
                 return c;
             }
 
         }
+        
+        if(false && sampleBetween(ray, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]))
+        return [0,0,1];
+        
         //console.log("Hit None");
         return [0,0,0];
             //return this.temp(ray);
@@ -358,7 +408,7 @@ export class Scene{
     instances:Instance[] =[]
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
-        
+        const v2 = sampleBetween2(this.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]);
         var t = Infinity;
         var p:vec3 = [0,0,0];
         var n:vec3 = [0,0,0];
@@ -372,7 +422,10 @@ export class Scene{
             var thit = obj.shape.ComputeIntersection(tRay);
             //console.log("ComputeIntersection", thit);
             var hit = obj.transform.toGlobalHit(thit);
+            
             if(hit) hit.t = getT(ray, hit!.p);
+            if(v2)
+                console.log("ComputeIntersection",ray, tRay, thit, hit, bestHit)
             if(verbose)console.log("Hit Object", hit, obj);
             if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
             {
@@ -463,8 +516,8 @@ export class Transform{
     }
     toLocalRay(ray:Ray):Ray
     {
-        //return {origin:this.toLocal(ray.origin), direction:normalize(this.toLocal(ray.direction))}
-        return {...ray, origin:this.toLocal(ray.origin)}
+        return {...ray, origin:this.toLocal(ray.origin), direction:(sub2(this.toLocal(ray.direction),getTranslation(this.inverse)))}
+        //return {...ray, origin:this.toLocal(ray.origin)}
     }
     toGlobalRay(ray:Ray):Ray
     {
@@ -495,7 +548,9 @@ export class Transform{
     }
     static fromScaleAndTranslation(translation:vec3=[0,0,0], sx:number=1,sy:number=1,sz:number=1)
     {
-        var mat = createMat4([sx,0,0], [0, sy,0], [0,0,sz], translation)
+        var scale = createMat4([sx,0,0], [0, sy,0], [0,0,sz], [0,0,0])
+        var transl = createMat4([1,0,0], [0, 1,0], [0,0,1], translation)
+        var mat = mulMat(transl,scale)
         return new Transform(mat);
     }
 
@@ -512,25 +567,28 @@ export class Sphere implements Shape{
     o_c: vec3 = [-12345,-1,-1];
     c=-12345
     ComputeIntersection(ray:Ray){
+        var v1 = verbose //|| sampleBetween(ray, 0.49,0.51, 0.49, 0.51)
         //if(this.o_c[0]==-12345)
         {
             this.o_c = (sub2(ray.origin, this.center));
             //this.o_c = (sub2(this.center, ray.origin));
             this.c = dot(this.o_c,this.o_c) -(this.Radius*this.Radius);
         }
+        
         //console.log("Ray o - c", o_c, ray.origin, ray.direction)
         var a = dot(ray.direction, ray.direction);
         var b = dot(ray.direction, this.o_c)*2;
         var c = this.c;
         //console.log("abc", a,b,c)
         var sols = sollution([a,b,c])
-        if(verbose) console.log("Solutions", sols,a,b,c)
+        if(v1) console.log("Solutions", sols,a,b,c)
         var posSols =sols.filter(s=>s>EPSILON);
         if(posSols.length<=0)
         {
             return ;
         }
-        if(verbose) console.log("Solutions", sols,a,b,c)
+        
+        if(v1) console.log("Solutions", sols,a,b,c)
         //console.log("Intersection", a,b,c)
         var t1 = Math.min(...posSols);
         //if(t < t1)return;

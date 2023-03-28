@@ -65,7 +65,7 @@ export class AppComponent implements OnInit{
     var ambLightPot = 0.2;
     var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
-    var camera = new Camera([0,-1,-0.4+dz,],u,v,w,this.angle, 5, this.W/this.H );
+    var camera = new Camera([0,-1,dz,],u,v,w,this.angle, 5, this.W/this.H );
 
     //camera.RotateX(-25.3);
     var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
@@ -81,14 +81,16 @@ export class AppComponent implements OnInit{
     //scene.AddLight(new Light([-0.5,1,-3]))
     //scene.AddLight(new Light([-0.5,2,1.5+dz]))
     //scene.AddLight(new Light([-0.6,0.8,-0.3+dz]))
-    scene.AddLight(new Light([-2,1.5,4.0+dz]))
+    //scene.AddLight(new Light([-1,2,2.0+dz]))
+    //scene.AddLight(new Light([1,2,2.0+dz]))
+    scene.AddLight(new Light([0,0.8,0.2+dz]))
     //return;
       //new Light([0,5,0]), 
     //scene.AddLight(new Light([2.5,0,10]),)
     
     scene.AddEntity({material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
-      transform:Transform.fromScaleAndTranslation([0,2,dz],)
+      transform:Transform.fromScaleAndTranslation([0,2,0.2+dz],1,1,1.2)
       //transform:new Transform()
     })
     
