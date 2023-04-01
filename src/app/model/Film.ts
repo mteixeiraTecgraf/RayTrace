@@ -5,12 +5,13 @@ import { TitleStrategy } from "@angular/router";
 const verbose = false;
 const verbose2 = false;
 const verbose3 = false;
-const LIGHT_FACTOR = 0.3;
+export const LIGHT_FACTOR = 0.3;
 const SHINESS = 10;
 const SAMPLE_COUNT = 8 ;
-const LIMITS = [0.68,0.69, 0.15, 0.16];
+const DEFAULT_AREA_SAMPLE_COUNT = 16 ;
+const LIMITS = [0.69,0.68, 0.15, 0.16];
 
-const EPSILON = Math.pow(10,-2);
+const EPSILON = Math.pow(10,-7);
 function sollution([a,b,c]:vec3)
 {
     var delta = b*b -4*a*c;
@@ -33,6 +34,13 @@ function add2(v1:vec3, v2:vec3)
 {
     return vec3.add([0,0,0], v1, v2);
 }
+function add3(v1:vec3, v2:vec3, v3:vec3)
+{
+    var v = vec3.create();
+    vec3.add(v, v1, v2);
+    vec3.add(v, v, v3);
+    return v
+}
 function sub2(v1:vec3, v2:vec3)
 {
     return vec3.sub([0,0,0], v1, v2);
@@ -44,6 +52,10 @@ function mul(v1:vec3, v2:vec3)
 function mulMat(v1:GLMat.mat4, v2:GLMat.mat4)
 {
     return GLMat.mat4.multiply(GLMat.mat4.create(), v1, v2);
+}
+function cross(v1:vec3, v2:vec3)
+{
+    return vec3.cross([0,0,0], v1, v2);
 }
 function getTranslation(v1:GLMat.mat4)
 {
@@ -63,9 +75,17 @@ function scale(v1:vec3, n:number)
 {
     return vec3.scale([0,0,0], v1, n);
 }
+function minus(v1:vec3)
+{
+    return vec3.scale([0,0,0], v1, -1);
+}
 function distance(v1:vec3, v2:vec3)
 {
     return vec3.distance(v1, v2);
+}
+function length(v1:vec3)
+{
+    return vec3.length(v1);
 }
 function normalize(v:vec3)
 {
@@ -201,8 +221,32 @@ export class Camera{
     }
 
 }
-export class Light{
+export abstract class Light{
+    public Potencia: vec3 = [1,1,1];
+    abstract Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } 
+}
+export class PontualLight implements Light{
+    type:"PontualLight";
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
+
+        var rayo = p; 
+        var rayd = normalize(sub2(this.Position,p)); 
+        rayo = add2(rayo, scale(rayd, EPSILON))
+        var ray:Ray = {origin:rayo, direction:rayd, camera:false};
+
+        //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
+        var hit2 = scene.ComputeIntersection(ray);
+        //if(v2 || verbose2) console.log("Hit2", ray, hit2, hit.light, sub2(ls.Position,hit.p))
+        if(hit2?.light != this
+        /*&& (hit2?.material != this)*/
+        )
+        {
+            //if(v2 || verbose3) console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
+            return {li:vec3.create(), l:vec3.create()};
+        }
+
+        
+
         var l = normalize(sub2(this.Position, p))
         var r = distance(p,this.Position);
         var Li = scale(this.Potencia,1/(r*r*LIGHT_FACTOR))
@@ -211,6 +255,80 @@ export class Light{
         return {li:Li, l:l}
     }
     constructor(public Position: vec3 = [0,0,0], public Potencia: vec3 = [1,1,1]){}
+
+}
+export class AreaLight implements Light{
+    type:"AreaLight";
+    _SAMPLE_COUNT = DEFAULT_AREA_SAMPLE_COUNT;
+    sqr_SAMPLE_COUNT = Math.sqrt(this.SAMPLE_COUNT);
+    get SAMPLE_COUNT(){
+        return this._SAMPLE_COUNT;
+    }
+    set SAMPLE_COUNT(value){
+        this._SAMPLE_COUNT = value;
+        this.sqr_SAMPLE_COUNT = Math.sqrt(this.SAMPLE_COUNT);
+        this.AreaPart = this.Area/this.SAMPLE_COUNT;
+    }
+    Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
+        const res = {li:vec3.create(),l:vec3.create()};
+        for(var i = 0; i< this.SAMPLE_COUNT; ++i)
+        {
+
+            var {li,l} = this.SampleRadiance(scene, p, n,i);
+            res.li = add2(res.li,li);
+            res.l = add2(res.l,l);
+        } 
+        //console.log("radiance", res)
+        return res;
+    }
+    SampleRadiance(scene: Scene, p: vec3, n: vec3, i:number): { li: vec3; l: vec3; } {
+        var ni = Math.ceil(i/this.sqr_SAMPLE_COUNT);
+        var nj = (i % this.sqr_SAMPLE_COUNT);
+        var {pos, normal:ns} = this.getSample(ni, nj)
+
+        var rayo = p; 
+        var l = scale(normalize(sub2(pos,p)),1/this.SAMPLE_COUNT); 
+        //console.log("l", l, i, pos, p);
+        rayo = add2(rayo, scale(l, EPSILON))
+        var ray:Ray = {origin:rayo, direction:l, camera:false};
+
+        //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
+        var hit = scene.ComputeIntersection(ray);
+        //if(v2 || verbose2) console.log("Hit2", hit)
+        //console.log("Radiance", ray);
+        //console.log("Radiance", ray, hit);
+        if(hit?.light == this
+        /*&& (hit2?.material != this)*/
+        )
+        {
+            var r = distance(p,pos);
+            //console.log("distance", r)
+            var Li = scale(this.Potencia,(dot(minus(l),ns)/(r*r*LIGHT_FACTOR))*this.AreaPart)
+            //console.log("distance", l, ns, dot(minus(l),ns), this.AreaPart, Li, this.Area)
+            
+            //console.log("Radiance", r,Li);
+            return {li:Li, l:l}
+        }
+        //if(v2 || verbose3) console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
+        return {li:vec3.create(), l:vec3.create()};
+    }
+    random = Math.random
+    getSample(ni:number,nj: number){
+        return {
+            pos:add3(
+                this.Position,
+                scale(this.ArestaI,(ni+this.random())/this.sqr_SAMPLE_COUNT), 
+                scale(this.Arestaj,(nj+this.random())/this.sqr_SAMPLE_COUNT)
+            ),
+            normal: this.Normal,
+        };
+    }
+    constructor(public Position: vec3 = [0,0,0], public ArestaI:vec3 = [1,0,0],public Arestaj:vec3 = [0, 1, 0], public Potencia: vec3 = [1,1,1]){}
+
+    Cross = cross(this.ArestaI,this.Arestaj);
+    Area=  length(this.Cross);
+    Normal = this.Cross;
+    AreaPart = this.Area/this.SAMPLE_COUNT;
 
 }
 export class Material{
@@ -227,20 +345,6 @@ export class Material{
         //vec3.normalize(v,)
         scene.instances.filter(i=>Boolean(i.light)==true).forEach(instance=>{
             var ls = instance.light!;
-            var rayo = hit.p; 
-            var rayd = normalize(sub2(ls.Position,hit.p)); 
-            rayo = add2(rayo, scale(rayd, EPSILON))
-            var ray:Ray = {origin:rayo, direction:rayd, camera:false};
-
-            if(v2 || verbose2)console.log("Computing intersection with same light", hit, ray);
-            var hit2 = scene.ComputeIntersection(ray);
-            if(v2 || verbose2) console.log("Hit2", ray, hit2, hit.light, sub2(ls.Position,hit.p))
-            if((hit2?.light != ls) && (hit2?.material != this))
-            {
-                if(v2 || verbose3) 
-                console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
-                return;
-            }
             var {li,l} = ls.Radiance(scene, hit!.p, n)
             var ml = scale(l,-1);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
@@ -255,7 +359,7 @@ export class Material{
             //console.log(li,l, contrib, hit, r, n, dot(r,v))
             //var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
             //console.log("Dot",dot(r,v))
-            var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), SHINESS));
+            var c2 = scale([1,1,1],Math.pow(Math.max(0,Math.min(dot(r,v), 1)), SHINESS));
             if(verbose3)console.log("shine", c2, c, r, v, dot(r,v), "L",l,ml, ls, n,hit);
             add(c2);
             //console.log("shine", c2, c);
@@ -324,7 +428,7 @@ export class Scene{
         for(let i = 0; i<this.W;i++ )
         {
         
-            //console.log("Pixel", i)
+            console.log("Pixel", i)
             for(let j = 0; j<this.H;j++ )
             {
                 var c:vec3 = [0,0,0]
@@ -381,7 +485,19 @@ export class Scene{
         return [0,0,0];
             //return this.temp(ray);
     }
-    AddLight(light:Light) {
+    AddAreaLight(light:AreaLight) {
+        //this.lightSources.push(light);
+        light.Potencia = sub2(light.Potencia, this.ambientLight);
+        const scale = 1;
+        const position =light.Position;
+        //const position:vec3 = [0,2,1]
+        //var transform = Transform.fromVec(position,light.ArestaI,light.Arestaj);
+        var transform = new Transform;
+        //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
+        this.AddEntity({light, shape:new Area(light.Position, light.ArestaI, light.Arestaj), transform});
+    }
+
+    AddPonctualLight(light:PontualLight) {
         //this.lightSources.push(light);
         light.Potencia = sub2(light.Potencia, this.ambientLight);
         const scale = 0.02;
@@ -403,6 +519,7 @@ export class Scene{
     
     AddEntity(arg0: Instance) {
         //this.obj.push(arg0);
+        console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
     }
     instances:Instance[] =[]
@@ -417,7 +534,7 @@ export class Scene{
         var bestHit:Hit|undefined = undefined; 
         this.instances.forEach(obj => {
             
-            if(verbose)console.log("Computing intersections", ray, obj);
+            if(verbose) console.log("Computing intersections", ray, obj);
             var tRay = obj.transform.toLocalRay(ray);
             var thit = obj.shape.ComputeIntersection(tRay);
             //console.log("ComputeIntersection", thit);
@@ -553,6 +670,14 @@ export class Transform{
         var mat = mulMat(transl,scale)
         return new Transform(mat);
     }
+    static fromVec(translation:vec3=[0,0,0], v1:vec3, v2:vec3)
+    {
+        var v3 = cross(v1,v2);
+        var mat = createMat4(v1, v2, v3, translation)
+        //var transl = createMat4([1,0,0], [0, 1,0], [0,0,1], translation)
+        //var mat = mulMat(transl,scale)
+        return new Transform(mat);
+    }
 
 }
 export class Sphere implements Shape{
@@ -614,16 +739,20 @@ export class Plane implements Shape{
     constructor(public normal:vec3, public point:vec3){}
     ComputeIntersection(ray: Ray): Hit | undefined {
         var d2 = dot(ray.direction, this.normal)
-        if(d2>= -0.000001 && d2<=0.000001)
+        //console.log("Plane Intersection", d2, ray.direction, this.normal)
+        if((d2>= -EPSILON) && ( d2<=EPSILON))
         {
             //parallel
+            //console.log("Not Intersect");
             return ;
         }
         var num = dot(sub2(this.point, ray.origin), this.normal)
         var t = num/d2;
-        var p = add2(this.point,scale(ray.direction, t));
+        //var p = add2(this.point,scale(ray.direction, t));
+        var p = add2(ray.origin,scale(ray.direction, t));
         var backface = d2>0;
         var n= this.normal;
+        //console.log("Plane", num, d2, t, p, n, backface);
             //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
         return <Hit>{
             material:undefined,
@@ -632,6 +761,59 @@ export class Plane implements Shape{
             n: n,
             backface:backface,
         }
+    }
+    
+}
+export class Area1 implements Shape{
+    type="Area";
+    plane:Plane
+    constructor(){
+        //this.plane = null
+    }
+    ComputeIntersection(ray: Ray): Hit | undefined {
+        //return ;
+        var hit = this.plane.ComputeIntersection(ray);
+        if(hit)
+        {
+            var [x,y] = hit.p;
+            //if(delta[0]<1)
+            if(x>=0 && x<1 && y>=0 && y<1)
+            {
+                return hit;
+            }
+        }
+        return ;
+    }
+    
+}
+export class Area implements Shape{
+    type="Area";
+    plane:Plane
+    constructor(public p:vec3, public e1:vec3, public e2:vec3){
+        //console.log("Area", e1, e2, cross(e1,e2));
+        this.plane = new Plane(cross(e1,e2),p)
+    }
+    ComputeIntersection(ray: Ray): Hit | undefined {
+        //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
+        //return ;
+        //ray.origin
+        var hit = this.plane.ComputeIntersection(ray);
+        if(hit)
+        {
+            //console.log("Plant Hit", hit);
+            //var [x,y] = hit.p;
+            var p = hit.p;
+            var pn = sub2(p,this.p);
+            var x = dot(pn, this.e1);
+            var y = dot(pn, this.e2);
+            //console.log("Plane Hit", hit, p, pn, x, y);
+            //if(delta[0]<1)
+            if(x>=0 && x<1 && y>=0 && y<1)
+            {
+                return hit;
+            }
+        }
+        return ;
     }
     
 }
