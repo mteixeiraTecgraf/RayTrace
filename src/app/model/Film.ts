@@ -1,8 +1,8 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
-import { TitleStrategy } from "@angular/router";
+import { Area, Shape, Sphere } from "./Shapes";
+import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, minus, mul, mulMat, normalize, reflect, scale, sub2, toVec3, toVec4, transpose, verbose } from "./utils";
 
-const verbose = false;
 const verbose2 = false;
 const verbose3 = false;
 export const LIGHT_FACTOR = 1;
@@ -11,104 +11,7 @@ const SAMPLE_COUNT = 4 ;
 const DEFAULT_AREA_SAMPLE_COUNT = 16 ;
 const LIMITS = [0.69,0.68, 0.15, 0.16];
 
-const EPSILON = Math.pow(10,-7);
-function sollution([a,b,c]:vec3)
-{
-    var delta = b*b -4*a*c;
-    var sol1 = (-b + Math.sqrt(delta))/(2*a)
-    var sol2 = (-b - Math.sqrt(delta))/(2*a);
-    if(verbose)console.log("Calc Solution", -b, delta, 2*a)
-    return [sol1,sol2];
-    
-}
-function createMat4(c1:vec3, c2:vec3, c3:vec3,c4:vec3):GLMat.mat4
-{
-    return [
-        c1[0],c1[1],c1[2],0,
-        c2[0],c2[1],c2[2],0,
-        c3[0],c3[1],c3[2],0,
-        c4[0],c4[1],c4[2],1,]
-}
-
-function add2(v1:vec3, v2:vec3)
-{
-    return vec3.add([0,0,0], v1, v2);
-}
-function add3(v1:vec3, v2:vec3, v3:vec3)
-{
-    var v = vec3.create();
-    vec3.add(v, v1, v2);
-    vec3.add(v, v, v3);
-    return v
-}
-function sub2(v1:vec3, v2:vec3)
-{
-    return vec3.sub([0,0,0], v1, v2);
-}
-function mul(v1:vec3, v2:vec3)
-{
-    return vec3.mul([0,0,0], v1, v2);
-}
-function divide(v1:vec3, v2:vec3)
-{
-    return vec3.divide([0,0,0], v1, v2);
-}
-function mulMat(v1:GLMat.mat4, v2:GLMat.mat4)
-{
-    return GLMat.mat4.multiply(GLMat.mat4.create(), v1, v2);
-}
-function cross(v1:vec3, v2:vec3)
-{
-    return vec3.cross([0,0,0], v1, v2);
-}
-function getTranslation(v1:GLMat.mat4)
-{
-    return GLMat.mat4.getTranslation(GLMat.vec3.create(), v1);
-    //return <vec3>[0,0,0]//GLMat.mat4.getTranslation(GLMat.vec3.create(), v1);
-}
-function dot(v1:vec3, v2:vec3)
-{
-    return vec3.dot( v1, v2);
-}
-function reflect(d:vec3, n:vec3){
-    //d−2(d⋅n)n
-    //return sub2(d, scale(n,2*dot(d,n)))
-    return sub2(scale(n,2*dot(d,n)),d)
-}
-function scale(v1:vec3, n:number)
-{
-    return vec3.scale([0,0,0], v1, n);
-}
-function minus(v1:vec3)
-{
-    return vec3.scale([0,0,0], v1, -1);
-}
-function distance(v1:vec3, v2:vec3)
-{
-    return vec3.distance(v1, v2);
-}
-function length(v1:vec3)
-{
-    return vec3.length(v1);
-}
-function normalize(v:vec3)
-{
-    return vec3.normalize([0,0,0], v);
-}
-function inverse(v:GLMat.mat4)
-{
-    return GLMat.mat4.invert([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
-}
-function transpose(v:GLMat.mat4)
-{
-    return GLMat.mat4.transpose([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
-}
-function toVec4(v:vec3):vec4{
-    return [v[0],v[1],v[2],1];
-}
-function toVec3(v:vec4):vec3{
-    return [v[0],v[1],v[2]];
-}
+export const EPSILON = Math.pow(10,-7);
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
 
     const colorIndices = getColorIndicesForCoord(x, height-(y+1), width);
@@ -622,9 +525,7 @@ export class Scene{
     }
 }
 type Instance = {material?:Material, light?:Light,shape:Shape, transform:Transform};
-export abstract class Shape {
-    abstract ComputeIntersection(ray:Ray):Hit|undefined;
-}
+
 export class Transform{
     toLocal(origin: vec3) {
         return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.inverse))
@@ -683,157 +584,4 @@ export class Transform{
         return new Transform(mat);
     }
 
-}
-export class Sphere implements Shape{
-    type="Sphere";
-    constructor( ){
-        
-    }
-    private center:vec3 = [0,0,0]
-    private Radius = 1;
-
-    //cache:{[number]}
-    o_c: vec3 = [-12345,-1,-1];
-    c=-12345
-    ComputeIntersection(ray:Ray){
-        var v1 = verbose //|| sampleBetween(ray, 0.49,0.51, 0.49, 0.51)
-        //if(this.o_c[0]==-12345)
-        {
-            this.o_c = (sub2(ray.origin, this.center));
-            //this.o_c = (sub2(this.center, ray.origin));
-            this.c = dot(this.o_c,this.o_c) -(this.Radius*this.Radius);
-        }
-        
-        //console.log("Ray o - c", o_c, ray.origin, ray.direction)
-        var a = dot(ray.direction, ray.direction);
-        var b = dot(ray.direction, this.o_c)*2;
-        var c = this.c;
-        //console.log("abc", a,b,c)
-        var sols = sollution([a,b,c])
-        if(v1) console.log("Solutions", sols,a,b,c)
-        var posSols =sols.filter(s=>s>EPSILON);
-        if(posSols.length<=0)
-        {
-            return ;
-        }
-        
-        if(v1) console.log("Solutions", sols,a,b,c)
-        //console.log("Intersection", a,b,c)
-        var t1 = Math.min(...posSols);
-        //if(t < t1)return;
-        var t = t1;
-        var p = add2(ray.origin,scale(ray.direction, t));
-        //var p = scale(ray.direction, t);
-        var backface = (posSols.length == 1)
-        var n= normalize(sub2(p,this.center));
-        //var material = obj.material
-        
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
-    }
-    
-}
-export class Plane implements Shape{
-    type="Plane";
-    constructor(public normal:vec3, public point:vec3){}
-    ComputeIntersection(ray: Ray): Hit | undefined {
-        var d2 = dot(ray.direction, this.normal)
-        //console.log("Plane Intersection", d2, ray.direction, this.normal)
-        if((d2>= -EPSILON) && ( d2<=EPSILON))
-        {
-            //parallel
-            //console.log("Not Intersect");
-            return ;
-        }
-        var num = dot(sub2(this.point, ray.origin), this.normal)
-        var t = num/d2;
-        //var p = add2(this.point,scale(ray.direction, t));
-        var p = add2(ray.origin,scale(ray.direction, t));
-        var backface = d2>0;
-        var n= this.normal;
-        //console.log("Plane", num, d2, t, p, n, backface);
-            //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
-    }
-    
-}
-export class Area1 implements Shape{
-    type="Area";
-    plane:Plane
-    constructor(){
-        //this.plane = null
-    }
-    ComputeIntersection(ray: Ray): Hit | undefined {
-        //return ;
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
-        {
-            var [x,y] = hit.p;
-            //if(delta[0]<1)
-            if(x>=0 && x<1 && y>=0 && y<1)
-            {
-                return hit;
-            }
-        }
-        return ;
-    }
-    
-}
-export class Area implements Shape{
-    type="Area";
-    plane:Plane
-    constructor(public p:vec3, public e1:vec3, public e2:vec3){
-        //console.log("Area", e1, e2, cross(e1,e2));
-        this.plane = new Plane(cross(e1,e2),p)
-    }
-    ComputeIntersection(ray: Ray): Hit | undefined {
-        //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
-        //return ;
-        //ray.origin
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
-        {
-            //console.log("Plant Hit", hit);
-            //var [x,y] = hit.p;
-            var p = hit.p;
-            var pn = sub2(p,this.p);
-            var x = dot(pn, this.e1);
-            var y = dot(pn, this.e2);
-            //console.log("Plane Hit", hit, p, pn, x, y);
-            //if(delta[0]<1)
-            if(x>=0 && x<1 && y>=0 && y<1)
-            {
-                return hit;
-            }
-        }
-        return ;
-    }
-    
-}
-export class Box implements Shape{
-    type="Area";
-    constructor(public bMin:vec3, public bMax:vec3){
-        //console.log("Area", e1, e2, cross(e1,e2));
-    }
-    ComputeIntersection(ray: Ray): Hit | undefined {
-
-        var t0 = divide(sub2(this.bMin, ray.origin),ray.direction);
-        var t1 = divide(sub2(this.bMax, ray.origin),ray.direction);
-        //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
-        //return ;
-        //ray.origin
-        return ;
-    }
-    
 }

@@ -1,6 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
-import { AreaLight, Camera, Film, Light, Material, Plane, PontualLight, Scene, Sphere, Transform } from './model/Film';
+import { AreaLight, Camera, Film, Light, Material, PontualLight, Scene, Transform } from './model/Film';
+import { Plane, Sphere } from './model/Shapes';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
