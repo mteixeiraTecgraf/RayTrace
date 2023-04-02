@@ -5,9 +5,9 @@ import { TitleStrategy } from "@angular/router";
 const verbose = false;
 const verbose2 = false;
 const verbose3 = false;
-export const LIGHT_FACTOR = 0.3;
-const SHINESS = 10;
-const SAMPLE_COUNT = 8 ;
+export const LIGHT_FACTOR = 1;
+const SHINESS = 2;
+const SAMPLE_COUNT = 4 ;
 const DEFAULT_AREA_SAMPLE_COUNT = 16 ;
 const LIMITS = [0.69,0.68, 0.15, 0.16];
 
@@ -48,6 +48,10 @@ function sub2(v1:vec3, v2:vec3)
 function mul(v1:vec3, v2:vec3)
 {
     return vec3.mul([0,0,0], v1, v2);
+}
+function divide(v1:vec3, v2:vec3)
+{
+    return vec3.divide([0,0,0], v1, v2);
 }
 function mulMat(v1:GLMat.mat4, v2:GLMat.mat4)
 {
@@ -327,12 +331,12 @@ export class AreaLight implements Light{
 
     Cross = cross(this.ArestaI,this.Arestaj);
     Area=  length(this.Cross);
-    Normal = this.Cross;
+    Normal = normalize(this.Cross);
     AreaPart = this.Area/this.SAMPLE_COUNT;
 
 }
 export class Material{
-    constructor(private matColorDiff:vec3){}
+    constructor(private matColorDiff:vec3, private matColorSpec:vec3 = [0,0,0], private shiness:number = SHINESS){}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
         var v2 = sampleBetween2(scene.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3])
         if( verbose2) 
@@ -359,7 +363,7 @@ export class Material{
             //console.log(li,l, contrib, hit, r, n, dot(r,v))
             //var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
             //console.log("Dot",dot(r,v))
-            var c2 = scale([1,1,1],Math.pow(Math.max(0,Math.min(dot(r,v), 1)), SHINESS));
+            var c2 = scale(this.matColorSpec,Math.pow(Math.max(0,Math.min(dot(r,v), 1)), this.shiness));
             if(verbose3)console.log("shine", c2, c, r, v, dot(r,v), "L",l,ml, ls, n,hit);
             add(c2);
             //console.log("shine", c2, c);
@@ -500,7 +504,7 @@ export class Scene{
     AddPonctualLight(light:PontualLight) {
         //this.lightSources.push(light);
         light.Potencia = sub2(light.Potencia, this.ambientLight);
-        const scale = 0.02;
+        const scale = 0.1;
         const position =light.Position;
         //const position:vec3 = [0,2,1]
         var transform = Transform.fromScaleAndTranslation(position,scale,scale,scale);
@@ -813,6 +817,22 @@ export class Area implements Shape{
                 return hit;
             }
         }
+        return ;
+    }
+    
+}
+export class Box implements Shape{
+    type="Area";
+    constructor(public bMin:vec3, public bMax:vec3){
+        //console.log("Area", e1, e2, cross(e1,e2));
+    }
+    ComputeIntersection(ray: Ray): Hit | undefined {
+
+        var t0 = divide(sub2(this.bMin, ray.origin),ray.direction);
+        var t1 = divide(sub2(this.bMax, ray.origin),ray.direction);
+        //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
+        //return ;
+        //ray.origin
         return ;
     }
     
