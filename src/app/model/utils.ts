@@ -1,7 +1,15 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
+import { EPSILON } from "./Film";
 
 export const verbose = false;
+
+
+export function closeTo(v1:number, v2:number, eps = EPSILON)
+{
+    return Math.abs(v1 - v2) < eps;
+}
+
 export function sollution([a,b,c]:vec3)
 {
     var delta = b*b -4*a*c;
@@ -88,6 +96,14 @@ export function normalize(v:vec3)
 export function inverse(v:GLMat.mat4)
 {
     return GLMat.mat4.invert([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
+}
+export function min(v:vec3, w:vec3)
+{
+    return vec3.min(vec3.create(), v,w);
+}
+export function max(v:vec3, w:vec3)
+{
+    return vec3.max(vec3.create(), v,w);
 }
 export function transpose(v:GLMat.mat4)
 {

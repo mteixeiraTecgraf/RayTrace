@@ -1,7 +1,7 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
-import { Area, Shape, Sphere } from "./Shapes";
-import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, minus, mul, mulMat, normalize, reflect, scale, sub2, toVec3, toVec4, transpose, verbose } from "./utils";
+import { Area, Box, Shape, Sphere } from "./Shapes";
+import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, scale, sub2, toVec3, toVec4, transpose, verbose } from "./utils";
 
 const verbose2 = false;
 const verbose3 = false;
@@ -10,8 +10,15 @@ const SHINESS = 2;
 const SAMPLE_COUNT = 4 ;
 const DEFAULT_AREA_SAMPLE_COUNT = 16 ;
 const LIMITS = [0.69,0.68, 0.15, 0.16];
+const FORCCE_HIT = false
+const FORCCE_NORMAL = false
+const FORCCE_L_HIT = false
+const FORCCE_L_HIT_N = false
+const FORCCE_LI_HIT = false
+const FORCCE_LI_MAT = false
 
-export const EPSILON = Math.pow(10,-7);
+export const EPSILON = Math.pow(10,-5);
+
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
 
     const colorIndices = getColorIndicesForCoord(x, height-(y+1), width);
@@ -129,6 +136,7 @@ export class Camera{
 
 }
 export abstract class Light{
+    public Intensidade: vec3 = [1,1,1];
     public Potencia: vec3 = [1,1,1];
     abstract Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } 
 }
@@ -161,11 +169,15 @@ export class PontualLight implements Light{
         //console.log("Radiance", this.Potencia, l, r,Li, r, 1/(r*r*0.5));
         return {li:Li, l:l}
     }
-    constructor(public Position: vec3 = [0,0,0], public Potencia: vec3 = [1,1,1]){}
+    Potencia:vec3;
+    constructor(public Position: vec3 = [0,0,0], public Intensidade: vec3 = [1,1,1]){
+        this.Potencia = scale(this.Intensidade, 2*Math.PI)
+    }
 
 }
 export class AreaLight implements Light{
     type:"AreaLight";
+    Potencia:vec3;
     _SAMPLE_COUNT = DEFAULT_AREA_SAMPLE_COUNT;
     sqr_SAMPLE_COUNT = Math.sqrt(this.SAMPLE_COUNT);
     get SAMPLE_COUNT(){
@@ -230,7 +242,7 @@ export class AreaLight implements Light{
             normal: this.Normal,
         };
     }
-    constructor(public Position: vec3 = [0,0,0], public ArestaI:vec3 = [1,0,0],public Arestaj:vec3 = [0, 1, 0], public Potencia: vec3 = [1,1,1]){}
+    constructor(public Position: vec3 = [0,0,0], public ArestaI:vec3 = [1,0,0],public Arestaj:vec3 = [0, 1, 0], public Intensidade: vec3 = [1,1,1]){}
 
     Cross = cross(this.ArestaI,this.Arestaj);
     Area=  length(this.Cross);
@@ -246,15 +258,45 @@ export class Material{
             console.log("Evaluating material", scene.sample,v2);
         let c:vec3 = mul(scene.ambientLight, this.matColorDiff);
         let v:vec3 = normalize(sub2(origin, hit!.p))
-        var n = hit!.n;
+        var n = normalize(hit!.n??[0,1,0]);
+        
+        if(FORCCE_NORMAL) {
+            var r = n.map(v=>Math.abs(v));
+            return <vec3>r;
+        }
         //return c;
         //return mul(add2([1,-1,1],n), [1/2,-1/2,1/2]);
         //vec3.normalize(v,)
         scene.instances.filter(i=>Boolean(i.light)==true).forEach(instance=>{
             var ls = instance.light!;
             var {li,l} = ls.Radiance(scene, hit!.p, n)
-            var ml = scale(l,-1);
+            var ml = minus(l);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
+            
+            if(FORCCE_L_HIT)
+            {
+                var r2 = l.map(v=>Math.abs(v));
+                c = add2(c, <vec3>r2);
+                return;
+            }
+            if(FORCCE_L_HIT_N)
+            {
+                var r2 = scale([1,0,0],dot(l,n)).map(v=>Math.abs(v));
+                c = add2(c, <vec3>r2);
+                return;
+            }
+            if(FORCCE_LI_HIT)
+            {
+                var r2 = li.map(v=>Math.abs(v));
+                c = add2(c, <vec3>r2);
+                return;
+            }
+            if(FORCCE_LI_MAT)
+            {
+                var r2 = mul(this.matColorDiff, li).map(v=>Math.abs(v));
+                c = add2(c, <vec3>r2);
+                return;
+            }
             //console.log("Contrib",contrib, li, l,n,dot(l,n))
             if(li[0]>0.5)
             {
@@ -262,6 +304,10 @@ export class Material{
 
             }
             add(contrib);
+            if(distance(hit.p, [2,1.5,2.9])<0.2)
+            {
+                //console.log("Hit Eval", n, hit.p, l,ml, distance(hit.p, [2,1.5,2.9]), dot(l,n));
+            }
             var r = reflect(l, n);
             //console.log(li,l, contrib, hit, r, n, dot(r,v))
             //var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
@@ -373,7 +419,9 @@ export class Scene{
             }
             else if(hit.material)
             {
-        
+
+                if(FORCCE_HIT) return <vec3>[1,0,0];
+                
                 if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
                 
@@ -428,8 +476,28 @@ export class Scene{
         //this.obj.push(arg0);
         console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
+        var node:AccNode = {instance:arg0, box: 
+            new Box([-2.1,0,-0.1],[2.2,4,4])
+            //arg0.shape.BondingBox()
+        };
+        if(!this.root.instance)
+        {
+            this.root = node;
+        }
+        else
+        {
+            node.child2 = this.root;
+            this.root = node
+            var bmin = this.root.child2!.box!.bMin;
+            var bmin = min(this.root.box!.bMin, this.root.child2!.box!.bMin);;
+            var bmax = max(this.root.box!.bMax, this.root.child2!.box!.bMax);
+            this.root.box = new Box(bmin, bmax)
+
+        }
     }
+    root:AccNode = {}
     instances:Instance[] =[]
+    
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
         const v2 = sampleBetween2(this.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]);
@@ -439,6 +507,12 @@ export class Scene{
         var backface=false;
         var material:Material = new Material([0,0,0]);
         var bestHit:Hit|undefined = undefined; 
+
+        var hit = this.root.box?.ComputeIntersection(ray);
+        if(!hit)
+        {
+            return ;
+        }
         this.instances.forEach(obj => {
             
             if(verbose) console.log("Computing intersections", ray, obj);
@@ -451,11 +525,20 @@ export class Scene{
             if(v2)
                 console.log("ComputeIntersection",ray, tRay, thit, hit, bestHit)
             if(verbose)console.log("Hit Object", hit, obj);
+
+            
+            //if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
+            if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
+            {
+                //console.log("Hit", n, hit?.p, l,ml, distance(hit.p, [3,1.5,2.9]));
+                //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+            }
             if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
             {
+                hit.material = obj.material;
+                hit.light = obj.light;
+            
                 bestHit = hit;
-                bestHit.material = obj.material;
-                bestHit.light = obj.light;
                 if(verbose3)
                 if(!ray.camera)
                     console.log("Hit Object", bestHit, obj);
@@ -525,6 +608,7 @@ export class Scene{
     }
 }
 type Instance = {material?:Material, light?:Light,shape:Shape, transform:Transform};
+type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:Instance}
 
 export class Transform{
     toLocal(origin: vec3) {
@@ -556,6 +640,7 @@ export class Transform{
                 ... hit,
                 p:this.toGlobal(hit.p),
                 n:this.toGlobalT(hit.n),
+                //n:normalize(hit.n),
                 
             }
         }

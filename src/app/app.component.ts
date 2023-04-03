@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
 import { AreaLight, Camera, Film, Light, Material, PontualLight, Scene, Transform } from './model/Film';
-import { Plane, Sphere } from './model/Shapes';
+import { Box, Plane, Sphere } from './model/Shapes';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -37,8 +37,8 @@ export class AppComponent implements OnInit{
     this.initScene();
   }
   scene:Scene;
-  W = 400;
-  H = 300;
+  W = 600;
+  H = 400;
   angle = 90;
   initScene(){
     this.testScene1();
@@ -63,10 +63,10 @@ export class AppComponent implements OnInit{
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    var ambLightPot = 0.7;
+    var ambLightPot = 0.4;
     var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
-    var camera = new Camera([0,-2,1+dz,],u,v,w,this.angle, 1, this.W/this.H );
+    var camera = new Camera([0,-2.0,0.5+dz,],u,v,w,this.angle, 1, this.W/this.H );
 
     //camera.RotateX(-25.3);
     var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
@@ -76,14 +76,15 @@ export class AppComponent implements OnInit{
       //console.log("mfyImageData", myImageData)
     //this.ctx.putImageData(myImageData,0,0);
     //scene.testCameraPixels();
-    var material = new Material([1,0,0], [0.2,0.2,0.2], 2);
-    var material2 = new Material([1,1,1], [0.8,0.8,0.8],1);
-    var material3 = new Material([1,0,0], [0,0,0],0.1);
+    var material = new Material([1,0,0], [0,0,0], 0.1);
+    var material2 = new Material([1,1,1], [0.8,0.8,0.8],20);
+    var material3 = new Material([1,0,0], [1,0.3,0.3],10);
     var material4 = new Material([0.4,1,0.4], [0,0,0],1);
-    var material5 = new Material([0.3,0.3,0.3], [0.8,0.8,0.8],1);
+    var material5 = new Material([0.1,0.1,0.1], [0.6,0.6,0.6],10);
+    var material6 = new Material([0.2,0.2,0.2], [0.9,0.9,0.9],1);
     
     //scene.AddPonctualLight(new PontualLight([-0.5,0.3,0.8+dz]))
-    scene.AddPonctualLight(new PontualLight([0,1,4]))
+    scene.AddPonctualLight(new PontualLight([0,1.0,2.97],))
     
     /*
     scene.AddPonctualLight(new PontualLight([-0.5,1,2.4],[0.25,0.25,0.25]))
@@ -107,6 +108,12 @@ export class AppComponent implements OnInit{
       //transform:new Transform()
     })
     */
+    scene.AddEntity({material: material6, shape:new Box([0,0,0],[1,1,1]), 
+      //[0,2,-1+dz], 1
+      transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+      //transform:new Transform()
+    })
+    
     
     //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([0,5,0], 1)})
@@ -116,11 +123,20 @@ export class AppComponent implements OnInit{
     ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
     
-    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
-    scene.AddEntity({material: material3, shape:new Plane([-1,0,0], [2,0,0]), transform:new Transform()})
-    scene.AddEntity({material: material4, shape:new Plane([1,0,0], [-2,0,0]), transform:new Transform()})
-    scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
-    scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
+
+    //scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
+    //scene.AddEntity({material: material3, shape:new Plane([-1,0,0], [2,0,0]), transform:new Transform()})
+    // scene.AddEntity({material: material4, shape:new Plane([1,0,0], [-2,0,0]), transform:new Transform()})
+    // scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
+    // scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
+    scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+    scene.AddEntity({material: material3, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity({material: material4, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+    //back
+    scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+    //teto
+    scene.AddEntity({material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+
     //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
     scene.Render(this.ctx);
   }
@@ -202,7 +218,7 @@ export class AppComponent implements OnInit{
     
     scene.AddEntity({material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
-      transform:Transform.fromScaleAndTranslation([0,2,10+-1+dz],)
+      transform:Transform.fromScaleAndTranslation([0,2,-1+dz],)
       //transform:new Transform()
     })
     
