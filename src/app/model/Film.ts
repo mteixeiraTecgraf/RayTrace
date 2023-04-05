@@ -8,7 +8,7 @@ const verbose3 = false;
 export const LIGHT_FACTOR = 1;
 const SHINESS = 2;
 const SAMPLE_COUNT = 4 ;
-const DEFAULT_AREA_SAMPLE_COUNT = 16 ;
+const DEFAULT_AREA_SAMPLE_COUNT = 4 ;
 const LIMITS = [0.69,0.68, 0.15, 0.16];
 const FORCCE_HIT = false
 const FORCCE_NORMAL = false
@@ -476,8 +476,12 @@ export class Scene{
         //this.obj.push(arg0);
         console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
+
+        var boxAdj = arg0.shape.BondingBox().Borders().map(arg0.transform.toGlobal,arg0.transform);
+        var vmax = max(...boxAdj);
+        var vmin = min(...boxAdj);
         var node:AccNode = {instance:arg0, box: 
-            new Box([-2.1,0,-0.1],[2.2,4,4])
+            new Box(vmin,vmax)
             //arg0.shape.BondingBox()
         };
         if(!this.root.instance)
@@ -492,6 +496,7 @@ export class Scene{
             var bmin = min(this.root.box!.bMin, this.root.child2!.box!.bMin);;
             var bmax = max(this.root.box!.bMax, this.root.child2!.box!.bMax);
             this.root.box = new Box(bmin, bmax)
+            console.log("Box", this.root.box)
 
         }
     }

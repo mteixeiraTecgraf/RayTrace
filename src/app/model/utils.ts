@@ -97,13 +97,17 @@ export function inverse(v:GLMat.mat4)
 {
     return GLMat.mat4.invert([0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,], v);
 }
-export function min(v:vec3, w:vec3)
+export function min(...all:vec3[])
 {
-    return vec3.min(vec3.create(), v,w);
+    var res = vec3.create();
+    all.forEach(v=>vec3.min(res,res, v));
+    return res;
 }
-export function max(v:vec3, w:vec3)
+export function max(...all:vec3[])
 {
-    return vec3.max(vec3.create(), v,w);
+    var res = vec3.create();
+    all.forEach(v=>vec3.max(res,res, v));
+    return res;
 }
 export function transpose(v:GLMat.mat4)
 {

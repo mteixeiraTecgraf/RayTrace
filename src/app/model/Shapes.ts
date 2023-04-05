@@ -168,6 +168,19 @@ export class Box implements Shape{
     constructor(public bMin:vec3 = [0,0,0], public bMax:vec3 = [1,1,1]){
         //console.log("Area", e1, e2, cross(e1,e2));
     }
+    Borders(){
+
+        return <vec3[]>[
+            [this.bMin[0],this.bMin[1],this.bMin[2]],    
+            [this.bMin[0],this.bMin[1],this.bMax[2]],    
+            [this.bMin[0],this.bMax[1],this.bMin[2]],    
+            [this.bMin[0],this.bMax[1],this.bMax[2]],    
+            [this.bMax[0],this.bMin[1],this.bMin[2]],    
+            [this.bMax[0],this.bMin[1],this.bMax[2]],    
+            [this.bMax[0],this.bMax[1],this.bMin[2]],    
+            [this.bMax[0],this.bMax[1],this.bMax[2]],    
+        ]
+    }
     ComputeIntersection(ray: Ray): Hit | undefined {
 
         let tn0 = 0;
