@@ -1,8 +1,9 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
-import { EPSILON } from "./Film";
+import { EPSILON, Ray } from "./Film";
 
 export const verbose = false;
+export const verbose2 = false;
 
 
 export function closeTo(v1:number, v2:number, eps = EPSILON)
@@ -118,4 +119,30 @@ export function toVec4(v:vec3):GLMat.vec4{
 }
 export function toVec3(v:GLMat.vec4):vec3{
     return [v[0],v[1],v[2]];
+}
+
+
+
+export function sampleBetween(ray:Ray, xmin:number,xmax:number,ymin:number,ymax:number)
+{
+    var sample = (<any>ray)['sample'];
+    if(!sample) return false
+    return sampleBetween2(sample, xmin, xmax,ymin,ymax)
+}
+export function sampleBetween2(sample:GLMat.vec2, xmin:number,xmax:number,ymin:number,ymax:number)
+{
+    var check = (
+        ((sample[0] > xmin) && (sample[0] < xmax)) &&
+        ((sample[1] > ymin) && (sample[1] < ymax)) &&
+        true
+        );
+    //if(check)
+    //console.log("ymax",sample)
+    return check? true:false;
+    //if(sample)
+    {
+        return check;
+        
+    }
+    return false;
 }
