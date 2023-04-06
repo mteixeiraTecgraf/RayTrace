@@ -2,7 +2,7 @@ import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
-import { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, LIGHT_FACTOR, LIMITS, SAMPLE_COUNT, verbose3 } from "./config";
+import { DEBUG_TRACE_POINT, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, LIGHT_FACTOR, LIMITS, SAMPLE_COUNT, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
 import { Material, PhongMaterial } from "./Material";
 
 
@@ -134,9 +134,9 @@ export class PontualLight implements Light{
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
 
         var rayo = p; 
-        var rayd = normalize(sub2(this.Position,p)); 
-        rayo = add2(rayo, scale(rayd, EPSILON))
-        var ray:Ray = {origin:rayo, direction:rayd, camera:false};
+        var rayd = sub2(this.Position,p);
+        
+        var ray = createRay(p, rayd, {addEps:true,normalizeDirection:true})
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hit2 = scene.ComputeIntersection(ray);
@@ -196,9 +196,7 @@ export class AreaLight implements Light{
 
         var rayo = p; 
         var l = scale(normalize(sub2(pos,p)),1/this.SAMPLE_COUNT); 
-        //console.log("l", l, i, pos, p);
-        rayo = add2(rayo, scale(l, EPSILON))
-        var ray:Ray = {origin:rayo, direction:l, camera:false};
+        var ray = createRay(rayo, l, {addEps:true});
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hit = scene.ComputeIntersection(ray);
@@ -240,6 +238,16 @@ export class AreaLight implements Light{
 
 }
 
+export function createRay(origin:vec3, direction:vec3, options:{addEps?:boolean, normalizeDirection?:boolean}={} ){
+    var rayo = origin
+    var rayd = direction
+    if(options.addEps)
+        rayo = add2(rayo, scale(rayd, EPSILON))
+    if(options.normalizeDirection)
+        rayd = normalize(rayd);
+    var ray:Ray = {origin:rayo, direction:rayd, camera:false};
+    return ray;
+}
 
 export type Ray = {origin:vec3, direction:vec3, camera:boolean};
 function getT(ray:Ray, point: vec3)
@@ -290,7 +298,15 @@ export class Scene{
         }
         this.Film.RenderImage(Context);
     }
+    recursionCount = 0;
     TraceRay(ray: Ray): vec3 {
+        if(this.recursionCount>=TRACE_RAY_RECURSION_MAX)return [0,0,0];
+        this.recursionCount++;
+        let c = this._TraceRay(ray);
+        this.recursionCount--;
+        return c;
+    }
+    _TraceRay(ray: Ray): vec3 {
         var hit = this.ComputeIntersection(ray);
         if (hit)
         {
@@ -307,6 +323,12 @@ export class Scene{
             }
             else if(hit.material)
             {
+                if(DEBUG_TRACE_POINT && distance(ray?.origin??[0,0,0], [2,1.1,1.1])<0.08)
+                {
+                    console.log("Hit trace", ray, hit);
+                    return [0,0,1]
+                    //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+                }
 
                 if(FORCCE_HIT) return <vec3>[1,0,0];
                 

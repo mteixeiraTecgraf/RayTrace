@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
-import { Hit, Scene } from "./Film";
-import { add2, distance, dot, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
-import { FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, LIMITS, SHINESS, verbose3 } from "./config";
+import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
+import { abs, add2, distance, dot, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
+import { DEBUG_TRACE_POINT, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, LIMITS, SHINESS, verbose3 } from "./config";
 
 
 
@@ -85,4 +85,50 @@ export class PhongMaterial extends Material{
     }
     P: vec3;
 
+}
+export class PhongMetal extends Material{
+    constructor(private phongMaterial:PhongMaterial, private r0:number){ super()}
+    Eval(scene: Scene, hit: Hit, origin: vec3):vec3
+    {
+        let p = hit.p;
+        let n = normalize(hit.n);
+        let v = normalize(sub2(origin, p));
+        let R = this.r0 + (1-this.r0)*Math.pow((1-dot(v,n)),5);
+        
+        if(false) return this.phongMaterial.Eval(scene, hit, origin);
+        
+        if(false) R=1.0;
+        if(false) return abs(minus(v));
+        if(false) return abs(scale([1,0,0], Math.pow((dot(v,n)),5)));
+        if(false) {
+            //return this.phongMaterial.Eval(scene, hit, origin) 
+            //return [1,0,0]
+            //var v2 = n.map(c=>Math.abs(c));
+            var v2 = v.map(c=>Math.abs(c));
+            return <vec3>v2;
+        }
+        
+        /*
+        if(R<=EPSILON)
+        {
+            return [0,0,0];
+        }
+        */
+        let c = scale(this.phongMaterial.Eval(scene, hit, origin), (1-R));
+        let r = normalize(reflect((v), n));
+        if(false) return abs(reflect((v), n));
+        let ray = createRay(p, r, {addEps:true})
+        var refl = scale(scene.TraceRay(ray),R);
+        c = add2(c, refl)
+
+        if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], [2,1.1,1.1])<0.08)
+        {
+            console.log("Hit", R, refl, v, r,n);
+            return [0,0,1]
+            //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+        }
+        
+        return c;
+
+    }
 }

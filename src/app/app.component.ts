@@ -1,7 +1,8 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
-import { AreaLight, Camera, Film, Light, Material, PontualLight, Scene, Transform } from './model/Film';
+import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform } from './model/Film';
 import { Box, Plane, Sphere } from './model/Shapes';
+import { PhongMaterial, PhongMetal } from './model/Material';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -76,16 +77,19 @@ export class AppComponent implements OnInit{
       //console.log("mfyImageData", myImageData)
     //this.ctx.putImageData(myImageData,0,0);
     //scene.testCameraPixels();
-    var material = new Material([1,0,0], [0,0,0], 0.1);
-    var material2 = new Material([1,1,1], [0.8,0.8,0.8],20);
-    var material3 = new Material([1,0,0], [1,0.3,0.3],10);
-    var material4 = new Material([0.4,1,0.4], [0,0,0],1);
-    var material5 = new Material([0.1,0.1,0.1], [0.6,0.6,0.6],10);
-    var material6 = new Material([0.2,0.2,0.2], [0.9,0.9,0.9],1);
+    var material = new PhongMaterial([1,0,0], [0,0,0], 0.1);
+    //rightwall mat
+    var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+    //rightwall mat
+    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
+    //leftwall mat
+    var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
+    //ceil mat
+    var material5 = new PhongMaterial([0.1,0.1,0.1], [0.6,0.6,0.6],10);
+    var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
     
     //scene.AddPonctualLight(new PontualLight([-0.5,0.3,0.8+dz]))
-    scene.AddPonctualLight(new PontualLight([0,1.0,2.97],))
-    
+    scene.AddPonctualLight(new PontualLight([1.5,1.2,2.97],))    
     /*
     scene.AddPonctualLight(new PontualLight([-0.5,1,2.4],[0.25,0.25,0.25]))
     scene.AddPonctualLight(new PontualLight([0.5,1,2.4],[0.25,0.25,0.25]))
@@ -130,8 +134,10 @@ export class AppComponent implements OnInit{
     // scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
     // scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
     scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
-    scene.AddEntity({material: material3, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
-    scene.AddEntity({material: material4, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+    //rightRed
+    scene.AddEntity({material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    //left green
+    scene.AddEntity({material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
     //back
     scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
     //teto
@@ -205,8 +211,8 @@ export class AppComponent implements OnInit{
       //console.log("mfyImageData", myImageData)
     //this.ctx.putImageData(myImageData,0,0);
     //scene.testCameraPixels();
-    var material = new Material([1,0,0]);
-    var material2 = new Material([1,1,1]);
+    var material = new PhongMaterial([1,0,0]);
+    var material2 = new PhongMaterial([1,1,1]);
     //scene.AddLight({material: material, shape:new Sphere([0,3,0], 1)})
     //scene.AddLight(new Light([-0.5,1,-3]))
     //scene.AddLight(new Light([-0.5,2,1.5+dz]))

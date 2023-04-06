@@ -146,3 +146,7 @@ export function sampleBetween2(sample:GLMat.vec2, xmin:number,xmax:number,ymin:n
     }
     return false;
 }
+
+export function abs(v:vec3){
+    return <vec3>v.map(c=>Math.abs(c));
+}

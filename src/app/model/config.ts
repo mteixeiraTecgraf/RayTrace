@@ -12,3 +12,7 @@ export const FORCCE_L_HIT = false
 export const FORCCE_L_HIT_N = false
 export const FORCCE_LI_HIT = false
 export const FORCCE_LI_MAT = false
+
+export const TRACE_RAY_RECURSION_MAX = 7
+
+export const DEBUG_TRACE_POINT = false;
