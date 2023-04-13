@@ -2,7 +2,7 @@ import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, LIGHT_FACTOR, LIMITS, SAMPLE_COUNT, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
 import { Material, PhongMaterial } from "./Material";
 
 
@@ -13,14 +13,21 @@ const setPixel = (myImageData:any, x:number, y:number, width:number, height:numb
     const colorIndices = getColorIndicesForCoord(x, height-(y+1), width);
     const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
     //film->SetPixelValue(i, j, glm::vec3(1.0f, 0.0f, 0.0f));
-    myImageData.data[redIndex] = r;
-    myImageData.data[greenIndex] = g;
-    myImageData.data[blueIndex] = b;
-    myImageData.data[alphaIndex] = a;
+
+    for(let j = 0; j<REPEAT_PX; ++j)
+    {
+        for(let i = 0; i<REPEAT_PX; ++i)
+        {
+            myImageData.data[redIndex+(i*4)+ (j*width*REPEAT_PX*4)] = r;
+            myImageData.data[greenIndex+(i*4)+j*width*REPEAT_PX*4] = g;
+            myImageData.data[blueIndex+(i*4)+j*width*REPEAT_PX*4] = b;
+            myImageData.data[alphaIndex+(i*4)+j*width*REPEAT_PX*4] = a;
+        }
+    }
   }
   
   const getColorIndicesForCoord = (x:number, y:number, width:number) => {
-    const red = y * (width * 4) + x * 4;
+    const red = y * REPEAT_PX * (width* REPEAT_PX * 4) + x * REPEAT_PX  * 4;
     return [red, red + 1, red + 2, red + 3];
   };
 export class Film{
@@ -29,7 +36,7 @@ export class Film{
         return SAMPLE_COUNT;
     }
     GetRandom(){
-        return Math.random();
+        return RANDOM_SAMPLE? Math.random() : 0.5;
     }
     GetSample(i: number, j: number): vec2 {
         return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
@@ -51,7 +58,7 @@ export class Film{
         //console.log("Data", i_idx, j, this.Data[i2][j])
     }
     get H(){
-        return this.Resolution[1]
+        return this.Resolution[1];
     }
     get W(){
         return this.Resolution[0];
@@ -61,7 +68,7 @@ export class Film{
         Context = Context ?? this.Context;
         if(Context){
             console.log("Data", this.Data)
-            const myImageData = Context!.createImageData(this.W, this.H);
+            const myImageData = Context!.createImageData(this.W*REPEAT_PX, this.H*REPEAT_PX);
             this.Data.forEach((l,idx)=>{
                 l.forEach((c,jdx)=>{
                     setPixel(myImageData, idx,jdx,this.W, this.H, c[0]*255, c[1]*255,c[2]*255,255 );
@@ -263,6 +270,14 @@ export type Hit = {
     p:vec3
 };
 export class Scene{
+    ReportComputations() {
+        console.log("Shape Count  ", this.instances.length)
+        //console.log("Instances  ", this.instances)
+        for(var i of this.instances)
+        {
+            console.log("Computation Shape  ", i.shape.computationCount)
+        }
+    }
 
     constructor(private Film:Film, public camera:Camera, public ambientLight:vec3){}
     get W(){return this.Film.W}
@@ -272,6 +287,7 @@ export class Scene{
         return this.sample;
     }
     Render(Context:CanvasRenderingContext2D){
+        this.tester.generateStructure();
         const film = this.Film
         const count = film.GetSampleCount();
         for(let i = 0; i<this.W;i++ )
@@ -297,6 +313,7 @@ export class Scene{
             }
         }
         this.Film.RenderImage(Context);
+        
     }
     recursionCount = 0;
     TraceRay(ray: Ray): vec3 {
@@ -310,7 +327,13 @@ export class Scene{
         var hit = this.ComputeIntersection(ray);
         if (hit)
         {
-            //console.log("Hit Some");
+            if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
+            {
+                console.log("Hit trace", ray, hit);
+                return [0,0,1]
+                //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+            }
+            //console.log("Hit Some", hit);
             if(hit.light)
             {
                 var c:vec3 = [0,0,0];
@@ -323,12 +346,6 @@ export class Scene{
             }
             else if(hit.material)
             {
-                if(DEBUG_TRACE_POINT && distance(ray?.origin??[0,0,0], [2,1.1,1.1])<0.08)
-                {
-                    console.log("Hit trace", ray, hit);
-                    return [0,0,1]
-                    //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
-                }
 
                 if(FORCCE_HIT) return <vec3>[1,0,0];
                 
@@ -359,18 +376,18 @@ export class Scene{
         //var transform = Transform.fromVec(position,light.ArestaI,light.Arestaj);
         var transform = new Transform;
         //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
-        this.AddEntity({light, shape:new Area(light.Position, light.ArestaI, light.Arestaj), transform});
+        this.AddEntity({name:"Luz de Area",light, shape:new Area(light.Position, light.ArestaI, light.Arestaj), transform});
     }
 
     AddPonctualLight(light:PontualLight) {
         //this.lightSources.push(light);
         light.Potencia = sub2(light.Potencia, this.ambientLight);
-        const scale = 0.1;
+        const scale = PONTUAL_LIGHT_RADIUS;
         const position =light.Position;
         //const position:vec3 = [0,2,1]
         var transform = Transform.fromScaleAndTranslation(position,scale,scale,scale);
         //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
-        this.AddEntity({light, shape:new Sphere(), transform});
+        this.AddEntity({name:"Luz Pontual",light, shape:new Sphere(), transform});
         
 
     }
@@ -382,11 +399,14 @@ export class Scene{
         new PhongMaterial([1,1,1]),
     ]
     
+    tester = new IntersectionTester()
     AddEntity(arg0: Instance) {
         //this.obj.push(arg0);
         console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
+        this.tester.Add(arg0);
 
+        return;
         var boxAdj = arg0.shape.BondingBox().Borders().map(arg0.transform.toGlobal,arg0.transform);
         var vmax = max(...boxAdj);
         var vmin = min(...boxAdj);
@@ -423,45 +443,15 @@ export class Scene{
         var material:Material = new PhongMaterial([0,0,0]);
         var bestHit:Hit|undefined = undefined; 
 
+        /*
         var hit = this.root.box?.ComputeIntersection(ray);
-        if(!hit)
+        if(this.root.box && !hit)
         {
             return ;
         }
-        this.instances.forEach(obj => {
-            
-            if(verbose) console.log("Computing intersections", ray, obj);
-            var tRay = obj.transform.toLocalRay(ray);
-            var thit = obj.shape.ComputeIntersection(tRay);
-            //console.log("ComputeIntersection", thit);
-            var hit = obj.transform.toGlobalHit(thit);
-            
-            if(hit) hit.t = getT(ray, hit!.p);
-            if(v2)
-                console.log("ComputeIntersection",ray, tRay, thit, hit, bestHit)
-            if(verbose)console.log("Hit Object", hit, obj);
-
-            
-            //if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
-            if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
-            {
-                //console.log("Hit", n, hit?.p, l,ml, distance(hit.p, [3,1.5,2.9]));
-                //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
-            }
-            if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
-            {
-                hit.material = obj.material;
-                hit.light = obj.light;
-            
-                bestHit = hit;
-                if(verbose3)
-                if(!ray.camera)
-                    console.log("Hit Object", bestHit, obj);
-                //console.log("Hit", bestHit);
-
-            }
-            
-        });
+        */
+       var bestHit = this.tester.Test(ray);
+        //this.tester.Test()
         if(verbose3)console.log("Hit Object Final", bestHit);
         return bestHit;
 
@@ -522,7 +512,7 @@ export class Scene{
     
     }
 }
-type Instance = {material?:Material, light?:Light,shape:Shape, transform:Transform};
+type Instance = {name:string, material?:Material, light?:Light,shape:Shape, transform:Transform};
 type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:Instance}
 
 export class Transform{
@@ -584,4 +574,228 @@ export class Transform{
         return new Transform(mat);
     }
 
+}
+
+export class IntersectionTester{
+    
+    instances :Instance[] = [];
+    Add(instance:Instance)
+    {
+        this.instances.push(instance);
+        return;
+        
+        var boxAdj = instance.shape.BondingBox().Borders().map(instance.transform.toGlobal,instance.transform);
+        var vmax = max(...boxAdj);
+        var vmin = min(...boxAdj);
+        var node:AccNode = {instance:instance, box: 
+            new Box(vmin,vmax)
+            //arg0.shape.BondingBox()
+        };
+        if(!this.root.instance)
+        {
+            this.root = node;
+        }
+        else
+        {
+            node.child2 = this.root;
+            this.root = node
+            var bmin = this.root.child2!.box!.bMin;
+            var bmin = min(this.root.box!.bMin, this.root.child2!.box!.bMin);;
+            var bmax = max(this.root.box!.bMax, this.root.child2!.box!.bMax);
+            this.root.box = new Box(bmin, bmax)
+            console.log("Box", this.root.box)
+
+        }
+    }
+    generateStructure(){
+        var centroids = this.instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
+        var bmax = max(...centroids);
+        var bmin = min(...centroids);
+        var bbox = new Box(bmin, bmax);
+
+        var res = this.divideInstances(this.instances)
+        if(res) this.root = res;
+        console.log("Structure", this.root)
+
+    }
+    getBoundingBox(instance:Instance)
+    {
+        var bbox = instance.shape.BondingBox();
+
+        var globalsborders = bbox.Borders().map(instance.transform.toGlobal, instance.transform);
+        var newBBox =  new Box(min(...globalsborders), max(...globalsborders));
+        console.log("BoundBox Transf", instance, globalsborders, newBBox);
+        return newBBox;
+    }
+    divideInstances(instances:Instance[]):AccNode|undefined{
+        
+        if(instances.length==0){
+            return;
+        }
+        if(instances.length==1){
+            return {box: this.getBoundingBox(instances[0]), instance: instances[0],};
+        }
+
+        var centroids = instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
+        var bmax = max(...centroids);
+        var bmin = min(...centroids);
+        var bbox = new Box(bmin, bmax);
+        
+        var best = 0;
+        var dx = bmax[0] - bmin[0]
+        var dbest = dx;
+        var dy = bmax[1] - bmin[1]
+        if(dy>dbest)
+        {
+            best = 1;
+            dbest = dy
+        }
+        var dz = bmax[2] - bmin[2]
+        if(dz>dbest)
+        {
+            best = 2;
+            dbest = dz
+        }
+        var sorted = instances.sort(sortBy);
+        var half = Math.ceil(instances.length/2);
+        var h1 = sorted.slice(0,half);
+        var h2 = sorted.slice(half);
+
+        var n1 = this.divideInstances(h1);
+        var n2 = this.divideInstances(h2);
+
+        
+        console.log("BoundBox Transf Join", n1, n2);
+        
+        return {box: new Box(
+            min(n1!.box!.bMin, n2!.box!.bMin), 
+            max(n1!.box!.bMax, n2!.box!.bMax), 
+            ), 
+            child1:n1, child2:n2};
+
+        function sortBy(ia:Instance,ib:Instance){
+            var v1 = (ia.shape.BondingBox().Centroid()[best]);
+            var v2 = (ib.shape.BondingBox().Centroid()[best]);
+            return v1-v2
+        }
+    }
+    root:AccNode = {}
+    Test(ray:Ray){
+
+        if(TEST_BRUTE_FORCE) return this.TestForce(ray);
+        /*
+        var hit = this.root.box?.ComputeIntersection(ray);
+        if(this.root.box && !hit)
+        {
+            //Not Hit
+            return ;
+        }
+        */
+        return this.TestNode(ray, this.root)
+        
+    }
+    TestNode(ray:Ray, node?:AccNode):Hit|undefined
+    {        
+        if(!node) return;
+        var hit = node.box?.ComputeIntersection(ray);
+        
+            
+
+        if(this.root.box && !hit)
+        {
+            //Not Hit
+            return ;
+        }
+
+        //console.log("Hit some 1")
+
+        if((!node.child1) && (!node.child2))
+        {
+            if(!node.instance) {
+                console.warn("No Child nor instance", node);
+                return;
+            }
+
+            if(verbose) console.log("Computing intersections", ray, node);
+            var tRay = node.instance!.transform.toLocalRay(ray);
+            var tHit = node.instance!.shape.ComputeIntersection(tRay);
+            //console.log("ComputeIntersection", thit);
+            var hit = node.instance!.transform.toGlobalHit(tHit);
+            if(hit) {
+                hit.material = node.instance.material;
+                hit.light = node.instance.light;
+                //if(node.instance.light) console.log("Node Light", ray, hit);
+                //console.log("Hit some")
+            }
+            else{
+                //console.log("Hit None", node.instance)
+            }
+            return hit;
+        }
+
+        var testRight = this.TestNode(ray, node.child1);
+        var testLeft = this.TestNode(ray, node.child2);
+
+        return this.CompareHits(testRight, testLeft);
+
+    }
+
+    TestForce(ray:Ray, v2:boolean =false){
+        
+        var bestHit:Hit|undefined = undefined; 
+        this.instances.forEach(obj => {
+            
+            if(verbose) console.log("Computing intersections", ray, obj);
+            var tRay = obj.transform.toLocalRay(ray);
+            var thit = obj.shape.ComputeIntersection(tRay);
+            //console.log("ComputeIntersection", thit);
+            var hit = obj.transform.toGlobalHit(thit);
+            
+            if(hit) hit.t = getT(ray, hit!.p);
+            if(v2)
+                console.log("ComputeIntersection",ray, tRay, thit, hit, bestHit)
+            if(verbose)console.log("Hit Object", hit, obj);
+
+            
+            //if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
+            if(distance(hit?.p??[0,0,0], [2,1.5,2.9])<0.2)
+            {
+                //console.log("Hit", n, hit?.p, l,ml, distance(hit.p, [3,1.5,2.9]));
+                //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+            }
+            if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
+            {
+                hit.material = obj.material;
+                hit.light = obj.light;
+            
+                bestHit = hit;
+                if(verbose3)
+                if(!ray.camera)
+                    console.log("Hit Object", bestHit, obj);
+                //console.log("Hit", bestHit);
+
+            }
+            
+        });
+        return bestHit;
+    }
+
+    CompareHits(h1?:Hit, h2?:Hit){
+        
+        if(DEBUG_TRACE_POINT && distance(h2?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
+        {
+            console.log("Hit CompareHits", h1, h2);
+            //return [0,0,1]
+            //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
+        }
+        if(!h1 && !h2) return;
+        if(!h1) return h2;
+        if(!h2) return h1;
+        if(!h1.backface &&(h1.t > EPSILON) && (h1.t < (h2.t??Infinity)))
+        {
+            //console.log("Compare Hit 1")
+            return h1;
+        }
+        return h2;
+    }
 }

@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
 import { abs, add2, distance, dot, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, LIMITS, SHINESS, verbose3 } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, LIMITS, SHINESS, verbose3 } from "./config";
 
 
 
@@ -121,7 +121,7 @@ export class PhongMetal extends Material{
         var refl = scale(scene.TraceRay(ray),R);
         c = add2(c, refl)
 
-        if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], [2,1.1,1.1])<0.08)
+        if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.08)
         {
             console.log("Hit", R, refl, v, r,n);
             return [0,0,1]
@@ -131,4 +131,11 @@ export class PhongMetal extends Material{
         return c;
 
     }
+}
+
+export class PhongDieletrics extends Material{
+    override Eval(scene: Scene, hit: Hit, origin: vec3): vec3 {
+        throw new Error("Method not implemented.");
+    }
+
 }

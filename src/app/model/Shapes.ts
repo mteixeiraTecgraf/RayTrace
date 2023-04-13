@@ -3,11 +3,15 @@ import { EPSILON, Hit, Ray } from "./Film";
 import { add2, closeTo, cross, divide, dot, max, min, normalize, scale, sollution, sub2, verbose } from "./utils";
 
 export abstract class Shape {
+    computationCount = 0;
+    SuccessCount = 0;
     abstract ComputeIntersection(ray:Ray):Hit|undefined;
     abstract BondingBox():Box;
 }
 
 export class Sphere implements Shape{
+    computationCount = 0;
+    SuccessCount = 0;
     type="Sphere";
     constructor( ){
         
@@ -24,6 +28,7 @@ export class Sphere implements Shape{
     o_c: vec3 = [-12345,-1,-1];
     c=-12345
     ComputeIntersection(ray:Ray){
+        this.computationCount++;
         var v1 = verbose //|| sampleBetween(ray, 0.49,0.51, 0.49, 0.51)
         //if(this.o_c[0]==-12345)
         {
@@ -39,7 +44,7 @@ export class Sphere implements Shape{
         //console.log("abc", a,b,c)
         var sols = sollution([a,b,c])
         if(v1) console.log("Solutions", sols,a,b,c)
-        var posSols =sols.filter(s=>s>EPSILON);
+        var posSols =sols.filter(s=>Math.abs(s)>EPSILON);
         if(posSols.length<=0)
         {
             return ;
@@ -68,8 +73,11 @@ export class Sphere implements Shape{
 }
 export class Plane implements Shape{
     type="Plane";
+    computationCount = 0;
+    SuccessCount = 0;
     constructor(public normal:vec3, public point:vec3){}
     ComputeIntersection(ray: Ray): Hit | undefined {
+        this.computationCount++;
         var d2 = dot(ray.direction, this.normal)
         //console.log("Plane Intersection", d2, ray.direction, this.normal)
         if((d2>= -EPSILON) && ( d2<=EPSILON))
@@ -102,12 +110,15 @@ export class Plane implements Shape{
     
 }
 export class Area1 implements Shape{
+    computationCount = 0;
+    SuccessCount = 0;
     type="Area";
     plane:Plane
     constructor(){
         //this.plane = null
     }
     ComputeIntersection(ray: Ray): Hit | undefined {
+        this.computationCount++;
         //return ;
         var hit = this.plane.ComputeIntersection(ray);
         if(hit)
@@ -129,12 +140,15 @@ export class Area1 implements Shape{
 }
 export class Area implements Shape{
     type="Area";
+    computationCount = 0;
+    SuccessCount = 0;
     plane:Plane
     constructor(public p:vec3, public e1:vec3, public e2:vec3){
         //console.log("Area", e1, e2, cross(e1,e2));
         this.plane = new Plane(cross(e1,e2),p)
     }
     ComputeIntersection(ray: Ray): Hit | undefined {
+        this.computationCount++;
         //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
         //return ;
         //ray.origin
@@ -165,6 +179,8 @@ export class Area implements Shape{
 }
 export class Box implements Shape{
     type="Box";
+    computationCount = 0;
+    SuccessCount = 0;
     constructor(public bMin:vec3 = [0,0,0], public bMax:vec3 = [1,1,1]){
         //console.log("Area", e1, e2, cross(e1,e2));
     }
@@ -181,7 +197,16 @@ export class Box implements Shape{
             [this.bMax[0],this.bMax[1],this.bMax[2]],    
         ]
     }
+    Centroid():vec3{
+        return scale([
+            this.bMax[0]+this.bMin[0],
+            this.bMax[1]+this.bMin[1],
+            this.bMax[2]+this.bMin[2],
+        ],0.5)
+    }
     ComputeIntersection(ray: Ray): Hit | undefined {
+        this.computationCount++;
+        
 
         let tn0 = 0;
         let tn1 = Number.POSITIVE_INFINITY;
@@ -270,6 +295,7 @@ export class Box implements Shape{
                     throw Error("Invalid Normal Option");
                 }
             }
+            this.SuccessCount++;
             //console.log("CloseTo",p, this.bMin, this.bMax, n )
             return <Hit>{
                 t:t,

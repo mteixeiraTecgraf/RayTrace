@@ -100,13 +100,13 @@ export function inverse(v:GLMat.mat4)
 }
 export function min(...all:vec3[])
 {
-    var res = vec3.create();
+    var res = vec3.fromValues(Number.POSITIVE_INFINITY,Number.POSITIVE_INFINITY,Number.POSITIVE_INFINITY);
     all.forEach(v=>vec3.min(res,res, v));
     return res;
 }
 export function max(...all:vec3[])
 {
-    var res = vec3.create();
+    var res = vec3.fromValues(Number.NEGATIVE_INFINITY,Number.NEGATIVE_INFINITY,Number.NEGATIVE_INFINITY);
     all.forEach(v=>vec3.max(res,res, v));
     return res;
 }

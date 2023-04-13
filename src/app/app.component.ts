@@ -3,6 +3,7 @@ import { glMatrix, mat2, vec3 } from 'gl-matrix';
 import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform } from './model/Film';
 import { Box, Plane, Sphere } from './model/Shapes';
 import { PhongMaterial, PhongMetal } from './model/Material';
+import { REPEAT_PX } from './model/config';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -55,16 +56,16 @@ export class AppComponent implements OnInit{
       this.angle = 10;
       
     }
-    this.ctx.canvas.width = this.W
-    this.ctx.canvas.height = this.H
+    this.ctx.canvas.width = this.W*REPEAT_PX
+    this.ctx.canvas.height = this.H*REPEAT_PX
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W,this.H], 0);
+    var film = Film.Make([this.W ,this.H ], 0);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    var ambLightPot = 0.4;
+    var ambLightPot = 0.6;
     var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
     var camera = new Camera([0,-2.0,0.5+dz,],u,v,w,this.angle, 1, this.W/this.H );
@@ -72,11 +73,26 @@ export class AppComponent implements OnInit{
     //camera.RotateX(-25.3);
     var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
     this.scene = scene;
-    //var scene = new Scene(film, );
+    //this.prepareSimpleLightBackBoxScene(scene);
     
-      //console.log("mfyImageData", myImageData)
-    //this.ctx.putImageData(myImageData,0,0);
-    //scene.testCameraPixels();
+    this.SimpleLightScene(scene);
+    this.addCeil(scene)
+    this.addBack(scene);
+    this.addLateralReflective(scene);
+    this.addLeft(scene);
+    this.addFloor(scene);
+    this.addBox(scene);
+    
+    //this.prepareSimpleLightScene(scene);
+    //this.prepareBoxScene(scene);
+    //this.prepareScene1(scene);
+    //var scene = new Scene(film, );
+    //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
+    scene.Render(this.ctx);
+    scene.ReportComputations();
+  }
+  prepareBoxScene(scene:Scene){
+    
     var material = new PhongMaterial([1,0,0], [0,0,0], 0.1);
     //rightwall mat
     var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
@@ -84,67 +100,166 @@ export class AppComponent implements OnInit{
     var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
     //leftwall mat
     var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
-    //ceil mat
-    var material5 = new PhongMaterial([0.1,0.1,0.1], [0.6,0.6,0.6],10);
     var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
     
-    //scene.AddPonctualLight(new PontualLight([-0.5,0.3,0.8+dz]))
-    scene.AddPonctualLight(new PontualLight([1.5,1.2,2.97],))    
-    /*
-    scene.AddPonctualLight(new PontualLight([-0.5,1,2.4],[0.25,0.25,0.25]))
-    scene.AddPonctualLight(new PontualLight([0.5,1,2.4],[0.25,0.25,0.25]))
-    scene.AddPonctualLight(new PontualLight([-0.5,0,2.4],[0.25,0.25,0.25]))
-    scene.AddPonctualLight(new PontualLight([0.5,0,2.4],[0.25,0.25,0.25]))
-    */
-   //scene.AddAreaLight(new AreaLight([-0.5,1,2.4],[1,0,0],[0,-1,0]))
-
-    //scene.AddPonctualLight(new PontualLight([0,1,1]))
-    //scene.AddPonctualLight(new PontualLight([1,1,1], [1,0,0]))
-    //scene.AddPonctualLight(new PontualLight([0,1,2],[0,1,0]))
-    //return;
-      //new Light([0,5,0]), 
-    //scene.AddLight(new Light([2.5,0,10]),)
-
-    /*
-    scene.AddEntity({material: material, shape:new Sphere(), 
-      //[0,2,-1+dz], 1
-      transform:Transform.fromScaleAndTranslation([0,2,0.2+dz],1,1,1.2)
-      //transform:new Transform()
-    })
-    */
-    scene.AddEntity({material: material6, shape:new Box([0,0,0],[1,1,1]), 
+    this.SimpleLightScene(scene);
+    scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
       //[0,2,-1+dz], 1
       transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
       //transform:new Transform()
     })
-    
-    
-    //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
-    //scene.AddEntity({material: material, shape:new Sphere([0,5,0], 1)})
-    //scene.AddEntity({material: material, shape:new Sphere([2,5,0], 1)})
-    //scene.AddEntity({material: material, shape:new Sphere([-2,7,0], 1)})
-    //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
-    ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
-    //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
-    
-
-    //scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
-    //scene.AddEntity({material: material3, shape:new Plane([-1,0,0], [2,0,0]), transform:new Transform()})
-    // scene.AddEntity({material: material4, shape:new Plane([1,0,0], [-2,0,0]), transform:new Transform()})
-    // scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
-    // scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
-    scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
     //rightRed
-    scene.AddEntity({material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
     //left green
-    scene.AddEntity({material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
     //back
-    scene.AddEntity({material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
-    //teto
-    scene.AddEntity({material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+    scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+    this.addCeil(scene);
 
-    //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
-    scene.Render(this.ctx);
+  }
+  SimpleLightScene(scene:Scene){
+    
+    scene.AddPonctualLight(new PontualLight([1.5,1.2,2.97],))    
+  }
+  prepareSimpleLightBackBoxScene(scene:Scene){
+    
+    this.SimpleLightScene(scene);
+    this.addBack(scene);
+    
+  }
+  addBack(scene:Scene){
+    
+    //rightwall mat
+    var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+    //back
+    scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+    
+  }
+  addCeil(scene:Scene){
+    //ceil mat
+    var material5 = new PhongMaterial([0.1,0.1,0.1], [0.6,0.6,0.6],10);
+    //teto
+    scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+
+  }
+  addFloor(scene:Scene){
+    //rightwall mat
+    var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+    //piso
+    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+   
+  }
+  simpleLightCeilScene(scene:Scene){
+    
+    this.SimpleLightScene(scene);
+    this.addCeil(scene);
+
+  }
+  prepareSimpleLightLateralReflective(scene:Scene){
+  
+    this.SimpleLightScene(scene);
+    this.addLateralReflective(scene);
+  }
+  addLateralReflective(scene:Scene){
+    
+    //rightwall mat
+    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
+    //rightRed
+    scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    
+  }
+  addBox(scene:Scene)
+  {
+    var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
+    
+    scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
+      //[0,2,-1+dz], 1
+      transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+      //transform:new Transform()
+    })
+  }
+  addLeft(scene:Scene){
+    
+    //leftwall mat
+    var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
+    //left green
+    scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+        
+  }
+
+  prepareScene1(scene:Scene){
+    
+    //console.log("mfyImageData", myImageData)
+  //this.ctx.putImageData(myImageData,0,0);
+  //scene.testCameraPixels();
+  var material = new PhongMaterial([1,0,0], [0,0,0], 0.1);
+  //rightwall mat
+  var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+  //rightwall mat
+  var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
+  //leftwall mat
+  var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
+  //ceil mat
+  var material5 = new PhongMaterial([0.1,0.1,0.1], [0.6,0.6,0.6],10);
+  var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
+  
+  //scene.AddPonctualLight(new PontualLight([-0.5,0.3,0.8+dz]))
+  scene.AddPonctualLight(new PontualLight([1.5,1.2,2.97],))    
+  /*
+  scene.AddPonctualLight(new PontualLight([-0.5,1,2.4],[0.25,0.25,0.25]))
+  scene.AddPonctualLight(new PontualLight([0.5,1,2.4],[0.25,0.25,0.25]))
+  scene.AddPonctualLight(new PontualLight([-0.5,0,2.4],[0.25,0.25,0.25]))
+  scene.AddPonctualLight(new PontualLight([0.5,0,2.4],[0.25,0.25,0.25]))
+  */
+ //scene.AddAreaLight(new AreaLight([-0.5,1,2.4],[1,0,0],[0,-1,0]))
+
+  //scene.AddPonctualLight(new PontualLight([0,1,1]))
+  //scene.AddPonctualLight(new PontualLight([1,1,1], [1,0,0]))
+  //scene.AddPonctualLight(new PontualLight([0,1,2],[0,1,0]))
+  //return;
+    //new Light([0,5,0]), 
+  //scene.AddLight(new Light([2.5,0,10]),)
+
+  /*
+  scene.AddEntity({material: material, shape:new Sphere(), 
+    //[0,2,-1+dz], 1
+    transform:Transform.fromScaleAndTranslation([0,2,0.2+dz],1,1,1.2)
+    //transform:new Transform()
+  })
+  */
+  scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
+    //[0,2,-1+dz], 1
+    transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+    //transform:new Transform()
+  })
+  
+  
+  //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
+  //scene.AddEntity({material: material, shape:new Sphere([0,5,0], 1)})
+  //scene.AddEntity({material: material, shape:new Sphere([2,5,0], 1)})
+  //scene.AddEntity({material: material, shape:new Sphere([-2,7,0], 1)})
+  //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
+  ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
+  //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
+  
+
+  //scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
+  //scene.AddEntity({material: material3, shape:new Plane([-1,0,0], [2,0,0]), transform:new Transform()})
+  // scene.AddEntity({material: material4, shape:new Plane([1,0,0], [-2,0,0]), transform:new Transform()})
+  // scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
+  // scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
+  scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+  //rightRed
+  scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+  //left green
+  scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+  //back
+  scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+  //teto
+  scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+
+
   }
   testScene2(){
     //const W = this.ctx.canvas.width;
@@ -161,7 +276,7 @@ export class AppComponent implements OnInit{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W,this.H], 0);
+    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -194,7 +309,7 @@ export class AppComponent implements OnInit{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W,this.H], 0);
+    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -222,7 +337,7 @@ export class AppComponent implements OnInit{
       //new Light([0,5,0]), 
     //scene.AddLight(new Light([2.5,0,10]),)
     
-    scene.AddEntity({material: material, shape:new Sphere(), 
+    scene.AddEntity({name:"Sphere",material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
       transform:Transform.fromScaleAndTranslation([0,2,-1+dz],)
       //transform:new Transform()
@@ -236,7 +351,7 @@ export class AppComponent implements OnInit{
     //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
     ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
-    scene.AddEntity({material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
+    scene.AddEntity({name:"Plane", material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
     //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
     scene.Render(this.ctx);
   }
