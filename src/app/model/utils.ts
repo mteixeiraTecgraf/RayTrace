@@ -1,9 +1,14 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
-import { EPSILON, Ray } from "./Film";
+import { EPSILON, Ray, Scene } from "./Film";
+import { DEBUG_SAMPLE } from "./config";
 
-export const verbose = false;
-export const verbose2 = false;
+export var verbose = false;
+export var verbose2 = false;
+export function setVerbose(value:boolean)
+{
+    verbose = value
+}
 
 
 export function closeTo(v1:number, v2:number, eps = EPSILON)
@@ -153,4 +158,12 @@ export function sampleBetween2(sample:GLMat.vec2, xmin:number,xmax:number,ymin:n
 
 export function abs(v:vec3){
     return <vec3>v.map(c=>Math.abs(c));
+}
+
+export function debugSample(scene:Scene):boolean{
+    return DEBUG_SAMPLE && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
+}
+export function calculateHitCode(code:number):vec3{
+    //code = 5;
+    return [(((code)/9)%3)/2,(((code)/3)%3)/2,((code)%3)/2]
 }

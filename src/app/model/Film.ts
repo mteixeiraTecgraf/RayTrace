@@ -1,7 +1,7 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
-import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
+import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
 import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
 import { Material, PhongMaterial } from "./Material";
 
@@ -149,7 +149,7 @@ export class PontualLight implements Light{
         var hit2 = scene.ComputeIntersection(ray);
 
         var hitCode = -1;
-        if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0)
+        if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0   )
         {
             hitCode = hit2.instanceRef;
            //return <vec3>[1,0,1]
@@ -340,7 +340,10 @@ export class Scene{
         return c;
     }
     _TraceRay(ray: Ray): vec3 {
+        setVerbose(debugSample(this));
         var hit = this.ComputeIntersection(ray);
+        
+        setVerbose(false);
         if (hit)
         {
             if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
@@ -372,8 +375,12 @@ export class Scene{
                 if(FORCCE_HIT_ON_VERTEX  && hit.forceOnVertex) return <vec3>[1,0,0];
                 if(FORCCE_HIT_MAT_CODE&& hit.instanceRef>0)
                 {
-                    //return <vec3>[1,0,1]
-                    return [(hit.instanceRef/4)%2,(hit.instanceRef/2)%2,hit.instanceRef%2]
+                    //return <vec3>[0,0,1]
+                    return calculateHitCode(hit.instanceRef)
+                }
+                if(debugSample(this))
+                {
+                    console.log("Trace", ray, hit)
                 }
                 
                 if(verbose3)console.log("Hit Material", hit);
@@ -724,9 +731,11 @@ export class IntersectionTester{
         return this.TestNode(ray, this.root)
         
     }
-    TestNode(ray:Ray, node?:AccNode):Hit|undefined
+    TestNode(ray:Ray, node?:AccNode, v = 0):Hit|undefined
     {        
         if(!node) return;
+        
+        if(verbose) console.log("Computing Box intersections", ray, node);
         var hit = node.box?.ComputeIntersection(ray);
         
             
@@ -752,8 +761,10 @@ export class IntersectionTester{
             //console.log("ComputeIntersection", thit);
             var hit = node.instance!.transform.toGlobalHit(tHit);
             if(hit) {
+                if(verbose) console.log("Computing Hit", ray, node, tRay, tHit, hit);
                 hit.material = node.instance.material;
                 hit.light = node.instance.light;
+                hit.instanceRef = v;
                 //if(node.instance.light) console.log("Node Light", ray, hit);
                 //console.log("Hit some")
             }
@@ -763,9 +774,11 @@ export class IntersectionTester{
             return hit;
         }
 
-        var testRight = this.TestNode(ray, node.child1);
-        var testLeft = this.TestNode(ray, node.child2);
+        var testRight = this.TestNode(ray, node.child1,v*2);
+        var testLeft = this.TestNode(ray, node.child2,(v*2)+1);
 
+        //testLeft = <Hit>{...testLeft, instanceRef:v};
+        //testRight = <Hit>{...testRight, instanceRef:v};
         return this.CompareHits(testRight, testLeft);
 
     }
@@ -811,8 +824,6 @@ export class IntersectionTester{
     }
 
     CompareHits(h1?:Hit, h2?:Hit){
-        h2 = <Hit>{...h2, instanceRef:(h2?.instanceRef??0)*2 + 2};
-        h1 = <Hit>{...h1, instanceRef:(h1?.instanceRef??0)*2 + 1};
         if(DEBUG_TRACE_POINT && distance(h2?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
         {
             console.log("Hit CompareHits", h1, h2);

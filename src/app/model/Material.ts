@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
-import { abs, add2, distance, dot, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS, verbose3 } from "./config";
+import { abs, add2, calculateHitCode, debugSample, distance, dot, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
+import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS, verbose3 } from "./config";
 
 
 
@@ -28,6 +28,10 @@ export class PhongMaterial extends Material{
         //vec3.normalize(v,)
         scene.lights.forEach(instance=>{
             var ls = instance.light!;
+            if(debugSample(scene))
+            {
+                console.log("Sample ", DEBUG_SAMPLE, hit, origin)
+            }
             var {li,l, hitCode} = ls.Radiance(scene, hit!.p, n)
             var ml = minus(l);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
@@ -40,7 +44,7 @@ export class PhongMaterial extends Material{
                     //    c = [0,1,0];
                     //c = add2(c, [(hitCode/4)%2,(hitCode/2)%2,hitCode%2]);
                     //else
-                        c = [(hitCode/4)%2,(hitCode/2)%2,hitCode%2];
+                        c = calculateHitCode(hitCode)
                 }
                 return;
             }

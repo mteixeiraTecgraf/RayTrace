@@ -356,7 +356,8 @@ export class Vertex implements Shape{
 
         let backface = denominador<0;
         let n = this.normal;
-        let p = add2(scale(this.e1,u),scale(this.e2,v))
+        //let p = add2(scale(this.e1,u),scale(this.e2,v))
+        let p = add2(ray.origin, scale(d, t))
         
         return <Hit>{
             backface,
