@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
 import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform } from './model/Film';
-import { Box, Plane, Sphere } from './model/Shapes';
+import { Box, Plane, Sphere, Vertex } from './model/Shapes';
 import { PhongMaterial, PhongMetal } from './model/Material';
 import { REPEAT_PX } from './model/config';
 
@@ -82,6 +82,7 @@ export class AppComponent implements OnInit{
     this.addLeft(scene);
     this.addFloor(scene);
     this.addBox(scene);
+    this.addVertices(scene);
     
     //this.prepareSimpleLightScene(scene);
     //this.prepareBoxScene(scene);
@@ -90,6 +91,13 @@ export class AppComponent implements OnInit{
     //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
     scene.Render(this.ctx);
     scene.ReportComputations();
+  }
+  addVertices(scene: Scene) {
+    const material = new PhongMaterial([0,1,0],[0,0,0]);
+    scene.AddEntity({name:"vertice",shape: new Vertex([0,0,0],[1,0,0],[0,1,1/2]), transform:new Transform(), material})
+    
+    const material2 = new PhongMaterial([0,1,1],[0,0,0]);
+    scene.AddEntity({name:"vertice2",shape: new Vertex([1.9,1,0.1],[0.9,2,0.1],[0.9,1,0.1]), transform:new Transform(), material:material2})
   }
   prepareBoxScene(scene:Scene){
     

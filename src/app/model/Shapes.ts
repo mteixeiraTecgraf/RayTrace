@@ -1,6 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray } from "./Film";
-import { add2, closeTo, cross, divide, dot, max, min, normalize, scale, sollution, sub2, verbose } from "./utils";
+import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
+import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
 
 export abstract class Shape {
     computationCount = 0;
@@ -315,4 +316,63 @@ export class Box implements Shape{
         return this;
     }
     
+}
+
+export class Vertex implements Shape{
+    computationCount: number;
+    SuccessCount: number;
+    e1: vec3;
+    e2: vec3;
+    cross:vec3
+    normal:vec3
+    area:number
+    constructor(public a:vec3, public b:vec3, public c:vec3){
+        this.refresh();
+    }
+    refresh(){        
+        this.e1 = sub2(this.b,this.a)
+        this.e2 = sub2(this.c,this.a);
+        this.cross = cross(this.e1, this.e2);
+        this.normal = normalize(this.cross);
+        this.area = length(this.cross)/2
+    }
+    ComputeIntersection(ray: Ray): Hit | undefined {
+        let d = ray.direction;
+        const denominador = triple(d,this.e2,this.e1);
+        if(Math.abs(denominador)<=EPSILON){
+            return;
+        }
+        let r = sub2(ray.origin,this.a);
+        let u = triple(d, this.e2, r)/denominador;
+        if((u<0) || (u>1)) return;
+
+        let v = triple(d, r, this.e1)/denominador;
+        if((v<0) || (v>1)) return;
+
+        if(u+v>1) return;
+
+        let t = triple(r,this.e1, this.e2)/denominador;
+        if(t<0)return;
+
+        let backface = denominador<0;
+        let n = this.normal;
+        let p = add2(scale(this.e1,u),scale(this.e2,v))
+        
+        return <Hit>{
+            backface,
+            n,
+            t,
+            p,
+            forceOnVertex:FORCCE_HIT_ON_VERTEX
+        }
+        
+    }
+    BondingBox(): Box {
+        let minB = min(this.a, this.b, this.c);
+        let maxB = max(this.a, this.b, this.c);
+        let diff = sub2(maxB, minB)
+        let minDiff = max(diff,[EPSILON,EPSILON,EPSILON])
+        return new Box(min(this.a, this.b, this.c), add2(minB, minDiff));
+    }
+
 }

@@ -69,6 +69,10 @@ export function dot(v1:vec3, v2:vec3)
 {
     return vec3.dot( v1, v2);
 }
+export function triple(v1:vec3, v2:vec3, v3:vec3)
+{
+    return vec3.dot( v1, cross(v2,v3));
+}
 export function reflect(d:vec3, n:vec3){
     //d−2(d⋅n)n
     //return sub2(d, scale(n,2*dot(d,n)))

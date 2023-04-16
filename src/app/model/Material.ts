@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
-import { abs, add2, distance, dot, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, LIMITS, SHINESS, verbose3 } from "./config";
+import { abs, add2, distance, dot, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS, verbose3 } from "./config";
 
 
 
@@ -20,17 +20,30 @@ export class PhongMaterial extends Material{
         
         if(FORCCE_NORMAL) {
             var r = n.map(v=>Math.abs(v));
+            //var r = n.map(v=>-(v));
             return <vec3>r;
         }
         //return c;
         //return mul(add2([1,-1,1],n), [1/2,-1/2,1/2]);
         //vec3.normalize(v,)
-        scene.instances.filter(i=>Boolean(i.light)==true).forEach(instance=>{
+        scene.lights.forEach(instance=>{
             var ls = instance.light!;
-            var {li,l} = ls.Radiance(scene, hit!.p, n)
+            var {li,l, hitCode} = ls.Radiance(scene, hit!.p, n)
             var ml = minus(l);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
             
+            if(FORCCE_HIT_OCL_MAT_CODE)
+            {
+                if(hitCode && (hitCode>0) && (length(c)<1))
+                {
+                    //if(hitCode<0)
+                    //    c = [0,1,0];
+                    //c = add2(c, [(hitCode/4)%2,(hitCode/2)%2,hitCode%2]);
+                    //else
+                        c = [(hitCode/4)%2,(hitCode/2)%2,hitCode%2];
+                }
+                return;
+            }
             if(FORCCE_L_HIT)
             {
                 var r2 = l.map(v=>Math.abs(v));
@@ -119,6 +132,7 @@ export class PhongMetal extends Material{
         if(false) return abs(reflect((v), n));
         let ray = createRay(p, r, {addEps:true})
         var refl = scale(scene.TraceRay(ray),R);
+        if(FORCE_HIDE_REFLECTION) return c;
         c = add2(c, refl)
 
         if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.08)
@@ -132,10 +146,31 @@ export class PhongMetal extends Material{
 
     }
 }
-
+//TODO Revisar Refracao
 export class PhongDieletrics extends Material{
+    constructor(private n:number){super()}
     override Eval(scene: Scene, hit: Hit, origin: vec3): vec3 {
-        throw new Error("Method not implemented.");
+        let p = hit.p;
+        let n = normalize(hit.n);
+        let v = normalize(sub2(origin, p));
+        let R0 = Math.pow((this.n -1)/(this.n+1),2)
+        let R = R0 + (1-R0)*Math.pow((1-dot(v,n)),5);
+
+        let r = normalize(reflect(minus(v),n));
+        let ray = createRay(p, r);
+
+        let c = scale(scene.TraceRay(ray),R);
+
+        let I = vec3.fromValues(1,1,1);
+        let ratio = this.n/1;
+        if(hit.backface){
+            //I = 
+            //TODO ver o que fazer com o a^(o-p)
+            ratio = 1/this.n;
+        }
+        //r = scale(normalize(minus(v),n),ratio)
+        throw Error("Metodo de Refracao incompleto");
+        
     }
 
 }

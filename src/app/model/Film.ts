@@ -2,7 +2,7 @@ import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, createMat4, cross, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
 import { Material, PhongMaterial } from "./Material";
 
 
@@ -134,11 +134,11 @@ export class Camera{
 export abstract class Light{
     public Intensidade: vec3 = [1,1,1];
     public Potencia: vec3 = [1,1,1];
-    abstract Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } 
+    abstract Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number } 
 }
 export class PontualLight implements Light{
     type:"PontualLight";
-    Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; } {
+    Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number} {
 
         var rayo = p; 
         var rayd = sub2(this.Position,p);
@@ -147,13 +147,22 @@ export class PontualLight implements Light{
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hit2 = scene.ComputeIntersection(ray);
+
+        var hitCode = -1;
+        if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0)
+        {
+            hitCode = hit2.instanceRef;
+           //return <vec3>[1,0,1]
+           //return [(hit2.instanceRef/4)%2,(hit2.instanceRef/2)%2,hit2.instanceRef%2]
+
+        }
         //if(v2 || verbose2) console.log("Hit2", ray, hit2, hit.light, sub2(ls.Position,hit.p))
         if(hit2?.light != this
         /*&& (hit2?.material != this)*/
         )
         {
             //if(v2 || verbose3) console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
-            return {li:vec3.create(), l:vec3.create()};
+            return {li:vec3.create(), l:vec3.create(), hitCode};
         }
 
         
@@ -163,7 +172,7 @@ export class PontualLight implements Light{
         var Li = scale(this.Potencia,1/(r*r*LIGHT_FACTOR))
         
         //console.log("Radiance", this.Potencia, l, r,Li, r, 1/(r*r*0.5));
-        return {li:Li, l:l}
+        return {li:Li, l:l, hitCode}
     }
     Potencia:vec3;
     constructor(public Position: vec3 = [0,0,0], public Intensidade: vec3 = [1,1,1]){
@@ -267,6 +276,8 @@ export type Hit = {
     light?: Light;
     material?: Material;
     backface:boolean;
+    forceOnVertex:boolean;
+    instanceRef:number;
     p:vec3
 };
 export class Scene{
@@ -299,12 +310,17 @@ export class Scene{
                 var c:vec3 = [0,0,0]
                 for(let s = 0; s<count; s++)
                 {
-                    
+                    //1
                     var sample:vec2 = film.GetSample(i,j);
+                    
                     this.sample = sample;
+                    
+                    //2
                     var ray:Ray = this.camera.GenerateRay(sample);
                     (<any>ray)['sample']=sample;
                     if(verbose2) console.log("Ray",i,j, ray)
+                    
+                    //3
                     c = add2(c,this.TraceRay(ray));
                     if(verbose2) console.log("Pixel", i,j,c)
                 }
@@ -336,6 +352,11 @@ export class Scene{
             //console.log("Hit Some", hit);
             if(hit.light)
             {
+                if(FORCCE_HIT_MAT_CODE&& hit.instanceRef>0)
+                {
+                    return <vec3>[0,1,1]
+                    //return [(hit.instanceRef/4)%2,(hit.instanceRef/2)%2,hit.instanceRef%2]
+                }
                 var c:vec3 = [0,0,0];
                 var r:number = hit.t;
                 c = add2(this.ambientLight, scale(hit.light.Potencia,1/r*r));
@@ -348,6 +369,12 @@ export class Scene{
             {
 
                 if(FORCCE_HIT) return <vec3>[1,0,0];
+                if(FORCCE_HIT_ON_VERTEX  && hit.forceOnVertex) return <vec3>[1,0,0];
+                if(FORCCE_HIT_MAT_CODE&& hit.instanceRef>0)
+                {
+                    //return <vec3>[1,0,1]
+                    return [(hit.instanceRef/4)%2,(hit.instanceRef/2)%2,hit.instanceRef%2]
+                }
                 
                 if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
@@ -432,6 +459,9 @@ export class Scene{
     }
     root:AccNode = {}
     instances:Instance[] =[]
+    get lights():Instance[]{
+        return this.instances.filter(i=>Boolean(i.light)==true)
+    }
     
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
@@ -781,7 +811,8 @@ export class IntersectionTester{
     }
 
     CompareHits(h1?:Hit, h2?:Hit){
-        
+        h2 = <Hit>{...h2, instanceRef:(h2?.instanceRef??0)*2 + 2};
+        h1 = <Hit>{...h1, instanceRef:(h1?.instanceRef??0)*2 + 1};
         if(DEBUG_TRACE_POINT && distance(h2?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
         {
             console.log("Hit CompareHits", h1, h2);
