@@ -1,35 +1,13 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
-import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
+import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
 import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
 import { Material, PhongMaterial } from "./Material";
 
 
 export const EPSILON = Math.pow(10,-5);
 
-const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
-
-    const colorIndices = getColorIndicesForCoord(x, height-(y+1), width);
-    const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
-    //film->SetPixelValue(i, j, glm::vec3(1.0f, 0.0f, 0.0f));
-
-    for(let j = 0; j<REPEAT_PX; ++j)
-    {
-        for(let i = 0; i<REPEAT_PX; ++i)
-        {
-            myImageData.data[redIndex+(i*4)+ (j*width*REPEAT_PX*4)] = r;
-            myImageData.data[greenIndex+(i*4)+j*width*REPEAT_PX*4] = g;
-            myImageData.data[blueIndex+(i*4)+j*width*REPEAT_PX*4] = b;
-            myImageData.data[alphaIndex+(i*4)+j*width*REPEAT_PX*4] = a;
-        }
-    }
-  }
-  
-  const getColorIndicesForCoord = (x:number, y:number, width:number) => {
-    const red = y * REPEAT_PX * (width* REPEAT_PX * 4) + x * REPEAT_PX  * 4;
-    return [red, red + 1, red + 2, red + 3];
-  };
 export class Film{
     GetSampleCount()
     {
@@ -278,7 +256,8 @@ export type Hit = {
     backface:boolean;
     forceOnVertex:boolean;
     instanceRef:number;
-    p:vec3
+    p:vec3,
+    uv:vec2,
 };
 export class Scene{
     ReportComputations() {
@@ -370,6 +349,9 @@ export class Scene{
             }
             else if(hit.material)
             {
+                if(hit.uv){
+                    //return min([1,1,1],add2(scale([1,0,0],hit.uv[0]), scale([0,1,0],hit.uv[1])));
+                }
 
                 if(FORCCE_HIT) return <vec3>[1,0,0];
                 if(FORCCE_HIT_ON_VERTEX  && hit.forceOnVertex) return <vec3>[1,0,0];

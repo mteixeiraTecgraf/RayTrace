@@ -3,9 +3,11 @@ import { vec2, vec3 } from "gl-matrix";
 export const verbose2 = false;
 export const verbose3 = false;
 export const LIGHT_FACTOR = 1;
+export const RESOLUTION = [600,400]
+export const ANGLE = 90
 export const SHINESS = 2;
-export const SAMPLE_COUNT = 1 ;
-export const RANDOM_SAMPLE = false ;
+export const SAMPLE_COUNT = 16 ;
+export const RANDOM_SAMPLE = true ;
 export const DEFAULT_AREA_SAMPLE_COUNT = 1 ;
 export const LIMITS = [0.69,0.68, 0.15, 0.16];
 export const FORCCE_HIT = false

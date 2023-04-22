@@ -1,7 +1,8 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
-import { abs, add2, calculateHitCode, debugSample, distance, dot, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
+import { abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
 import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS, verbose3 } from "./config";
+import { BehaviorSubject, Subject, filter } from "rxjs";
 
 
 
@@ -177,4 +178,46 @@ export class PhongDieletrics extends Material{
         
     }
 
+}
+export class TextureMaterial extends Material{
+    image: HTMLImageElement;
+    canvas: HTMLCanvasElement;
+    loaded=new BehaviorSubject<boolean>(false);
+    loaded$ = this.loaded.asObservable();
+    res = 500;
+    data: Uint8ClampedArray;
+    constructor(imagePath:string){ 
+        super()
+        this.image = new Image(this.res,this.res);
+        this.image.onload = (()=>{
+            this.canvas = document.createElement('canvas');
+            this.canvas.width = this.image.width;
+            this.canvas.height = this.image.height;
+            this.canvas.getContext('2d')!.drawImage(this.image, 0, 0, this.image.width, this.image.height);
+            this.data = this.canvas.getContext('2d')!.getImageData(0, 0, this.image.width, this.image.height).data;
+            console.log("Load",this.data, this.canvas.getContext('2d')!.getImageData(1, 0, 2, 2).data);
+            this.loaded.next(true);
+        })
+        this.image.src = imagePath;
+    }
+    async waitLoad()
+    {
+        return new Promise<boolean>(resolve=>{
+            this.loaded$.pipe(filter(v=>v)).subscribe(()=>{
+                resolve(true);
+            })
+        })
+    }
+    Eval(scene: Scene, hit: Hit, origin: vec3):vec3
+    {
+        var colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
+        const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
+        var [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
+        //var [x,y,z] = this.canvas.getContext('2d')!.getImageData(hit.uv[0]*this.res, hit.uv[1]*this.res, 1, 1).data;
+        //console.log("Mark", colorIndices, x,y,z, hit.uv[0]*this.res, hit.uv[1]*this.res, this.canvas.width*this.canvas.height);
+        //return [x,0,0];
+        return scale([x,y,z],1/256)
+        //return [pixelData.data];
+
+    }
 }

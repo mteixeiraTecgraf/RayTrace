@@ -2,8 +2,9 @@ import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
 import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform } from './model/Film';
 import { Box, Plane, Sphere, Vertex } from './model/Shapes';
-import { PhongMaterial, PhongMetal } from './model/Material';
-import { REPEAT_PX } from './model/config';
+import { PhongMaterial, PhongMetal, TextureMaterial } from './model/Material';
+import { ANGLE, REPEAT_PX, RESOLUTION } from './model/config';
+import { add2 } from './model/utils';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -39,14 +40,14 @@ export class AppComponent implements OnInit{
     this.initScene();
   }
   scene:Scene;
-  W = 600;
-  H = 400;
-  angle = 90;
+  W = RESOLUTION[0];
+  H = RESOLUTION[1];
+  angle = ANGLE;
   initScene(){
     this.testScene1();
   }
   
-  testScene1(){
+  async testScene1(){
     //const W = this.ctx.canvas.width;
     //const H = this.ctx.canvas.height;
     if(false)
@@ -82,7 +83,7 @@ export class AppComponent implements OnInit{
     this.addLeft(scene);
     this.addFloor(scene);
     this.addBox(scene);
-    this.addVertices(scene);
+    await this.addVertices(scene);
     
     //this.prepareSimpleLightScene(scene);
     //this.prepareBoxScene(scene);
@@ -92,12 +93,42 @@ export class AppComponent implements OnInit{
     scene.Render(this.ctx);
     scene.ReportComputations();
   }
-  addVertices(scene: Scene) {
+  async addVertices(scene: Scene) {
     const material = new PhongMaterial([0,1,0],[0,0,0]);
-    scene.AddEntity({name:"vertice",shape: new Vertex([0,0,0],[1,0,0],[0,1,1/2]), transform:new Transform(), material})
+    //scene.AddEntity({name:"vertice",shape: new Vertex([0,0,0],[1,0,0],[0,1,1/2]), transform:new Transform(), material})
     
-    const material2 = new PhongMaterial([0,1,1],[0,0,0]);
-    scene.AddEntity({name:"vertice2",shape: new Vertex([1.9,1,0.1],[0.9,2,0.1],[0.9,1,0.1]), transform:new Transform(), material:material2})
+    //const material2 = new PhongMaterial([0,1,1],[0,0,0]);
+    //scene.AddEntity({name:"vertice2",shape: new Vertex([1.9,1,0.1],[0.9,2,0.1],[0.9,1,0.1]), transform:new Transform(), material:material2})
+    await this.addMesh(scene, [[-1,0,0],[-0.5,0.5,0], [-1.5,0.5,0], [-1,0.25,0.5]], [[0,1,2],[0,1,3],[1,2,3],[2,0,3]])
+    await this.addMesh(scene, [
+      //[0,0,0],[1,0,0], [1,1,0], [0,1,0],
+      //[0,0,1],[1,0,1], [1,1,1], [0,1,1],
+      ...this.createPlaneVertex([1,1,0],[0.5,0.5,0], [-0.5,0.5,0]),
+      ...this.createPlaneVertex([1,1,1],[0.5,0.5,0], [-0.5,0.5,0]),
+    ], [
+      ...this.createPlaneVertexPoints(0,3,2,1),//down
+      ...this.createPlaneVertexPoints(4,5,6,7),//up
+      ...this.createPlaneVertexPoints(0,1,5,4),//front
+      ...this.createPlaneVertexPoints(2,3,7,6),//back
+      ...this.createPlaneVertexPoints(3,0,4,7),//left
+      ...this.createPlaneVertexPoints(1,2,6,5),
+    ])
+  }
+  createPlaneVertexPoints(...[v1,v2,v3,v4]:number[]):[number,number,number][]{
+    return [[v1,v4,v2],[v3,v2,v4]]//down
+  }
+  createPlaneVertex(...[o,e1,e2]:vec3[]){
+    const v1 = add2(o,e1);
+    return [o,v1,add2(v1,e2), add2(o,e2)]
+  }
+  async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][]) {
+    //const material2 = new PhongMaterial([0,1,1],[1,1,1],0.6);
+    const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
+    await material2.waitLoad();
+    for(let p of polygon)
+    {
+      scene.AddEntity({name:`vertice ${p[0]} ${p[1]} ${p[2]}`,shape: new Vertex(vertexes[p[0]],vertexes[p[1]], vertexes[p[2]]), transform:new Transform(), material:material2})
+    }
   }
   prepareBoxScene(scene:Scene){
     

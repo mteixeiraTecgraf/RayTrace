@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
 import { EPSILON, Ray, Scene } from "./Film";
-import { DEBUG_SAMPLE } from "./config";
+import { DEBUG_SAMPLE, REPEAT_PX } from "./config";
 
 export var verbose = false;
 export var verbose2 = false;
@@ -167,3 +167,28 @@ export function calculateHitCode(code:number):vec3{
     //code = 5;
     return [(((code)/9)%3)/2,(((code)/3)%3)/2,((code)%3)/2]
 }
+
+
+export const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
+
+    const colorIndices = getColorIndicesForCoord(x, height-(y+1), width);
+    const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
+    //film->SetPixelValue(i, j, glm::vec3(1.0f, 0.0f, 0.0f));
+
+    for(let j = 0; j<REPEAT_PX; ++j)
+    {
+        for(let i = 0; i<REPEAT_PX; ++i)
+        {
+            myImageData.data[redIndex+(i*4)+ (j*width*REPEAT_PX*4)] = r;
+            myImageData.data[greenIndex+(i*4)+j*width*REPEAT_PX*4] = g;
+            myImageData.data[blueIndex+(i*4)+j*width*REPEAT_PX*4] = b;
+            myImageData.data[alphaIndex+(i*4)+j*width*REPEAT_PX*4] = a;
+        }
+    }
+  }
+  
+  export  const getColorIndicesForCoord = (x:number, y:number, width:number, hasAlpha:boolean = true) => {
+    const idxMul = hasAlpha?4:3
+    const red = y * REPEAT_PX * (width* REPEAT_PX * idxMul) + x * REPEAT_PX  * idxMul;
+    return [red, red + 1, red + 2, red + 3];
+  };

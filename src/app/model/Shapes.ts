@@ -364,7 +364,8 @@ export class Vertex implements Shape{
             n,
             t,
             p,
-            forceOnVertex:FORCCE_HIT_ON_VERTEX
+            forceOnVertex:FORCCE_HIT_ON_VERTEX,
+            uv:[u,v]
         }
         
     }
