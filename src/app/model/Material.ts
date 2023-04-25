@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { EPSILON, Hit, Ray, Scene, createRay } from "./Film";
-import { abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2 } from "./utils";
-import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS, verbose3 } from "./config";
+import { abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2, verbose3 } from "./utils";
+import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
 
 
@@ -14,7 +14,7 @@ export class PhongMaterial extends Material{
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
         var v2 = sampleBetween2(scene.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3])
         if( verbose2) 
-            console.log("Evaluating material", scene.sample,v2);
+            console.log("MARK2::Evaluating material", scene.sample,v2);
         let c:vec3 = mul(scene.ambientLight, this.matColorDiff);
         let v:vec3 = normalize(sub2(origin, hit!.p))
         var n = normalize(hit!.n??[0,1,0]);
@@ -29,6 +29,7 @@ export class PhongMaterial extends Material{
         //vec3.normalize(v,)
         scene.lights.forEach(instance=>{
             var ls = instance.light!;
+            if(verbose2) console.log("@MARK2::Checking light", instance);
             if(debugSample(scene))
             {
                 console.log("Sample ", DEBUG_SAMPLE, hit, origin)
@@ -37,6 +38,9 @@ export class PhongMaterial extends Material{
             var ml = minus(l);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
             
+            
+            if(verbose2) console.log("@MARK2::Radiance Calculated", li, l, hitCode);
+
             if(FORCCE_HIT_OCL_MAT_CODE)
             {
                 if(hitCode && (hitCode>0) && (length(c)<1))

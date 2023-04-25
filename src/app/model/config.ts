@@ -1,13 +1,11 @@
 import { vec2, vec3 } from "gl-matrix";
 
-export const verbose2 = false;
-export const verbose3 = false;
 export const LIGHT_FACTOR = 1;
 export const RESOLUTION = [600,400]
-export const ANGLE = 90
+export const ANGLE = 30
 export const SHINESS = 2;
-export const SAMPLE_COUNT = 16 ;
-export const RANDOM_SAMPLE = true ;
+export const SAMPLE_COUNT = 1;
+export const RANDOM_SAMPLE = false ;
 export const DEFAULT_AREA_SAMPLE_COUNT = 1 ;
 export const LIMITS = [0.69,0.68, 0.15, 0.16];
 export const FORCCE_HIT = false
@@ -26,7 +24,9 @@ export const TEST_BRUTE_FORCE = false;
 
 export const DEBUG_TRACE_POINT = false;
 export const DEBUG_TRACE_POINT_COORDS:vec3 = [1.5,1.2,2.97];
-export const DEBUG_SAMPLE:vec2 = [0,0];//0.5875, 0.31875];
+export const DEBUG_SAMPLE:vec2 = [0.0,0.0];//0.5875, 0.31875];
+export const DEBUG_SAMPLE2:vec2 = [300,300];//0.5875, 0.31875];
+export const DEBUG_SAMPLE2_RADIUS:vec2 = [10,10];//0.5875, 0.31875];
 
 export const PONTUAL_LIGHT_RADIUS = 0.05;
 export const REPEAT_PX = 1;

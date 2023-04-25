@@ -1,13 +1,16 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
 import { EPSILON, Ray, Scene } from "./Film";
-import { DEBUG_SAMPLE, REPEAT_PX } from "./config";
+import { DEBUG_SAMPLE, DEBUG_SAMPLE2, REPEAT_PX } from "./config";
 
 export var verbose = false;
 export var verbose2 = false;
+export var verbose3 = false;
 export function setVerbose(value:boolean)
 {
     verbose = value
+    verbose2 = value
+    verbose3 = value
 }
 
 
@@ -130,6 +133,42 @@ export function toVec3(v:GLMat.vec4):vec3{
     return [v[0],v[1],v[2]];
 }
 
+export function identity()
+{
+    var m = GLMat.mat4.create();
+    GLMat.mat4.identity(m)
+    return m;
+}
+
+export function translate(mat:GLMat.mat4, translation:vec3=[0,0,0])
+{
+    GLMat.mat4.translate(mat, mat, translation)
+    return mat;
+}
+export function scaleMat(mat:GLMat.mat4, scale:vec3=[0,0,0])
+{
+    GLMat.mat4.scale(mat, mat, scale)
+    return mat;
+}
+
+const degrees_to_radians = (deg:number) => (deg * Math.PI) / 180.0;
+export function rotate(mat:GLMat.mat4, angle:number, axis:"x"|"y"|"z")
+{
+    var axisvec = vec3.fromValues(1,0,0);
+    switch(axis)
+    {
+        case "y":
+            axisvec = vec3.fromValues(0,1,0);
+            break;
+        case "z":
+            axisvec = vec3.fromValues(0,0,1);
+            break;
+
+    }
+    GLMat.mat4.rotate(mat, mat, degrees_to_radians(angle), axisvec);
+    return mat;
+}
+
 
 
 export function sampleBetween(ray:Ray, xmin:number,xmax:number,ymin:number,ymax:number)
@@ -159,9 +198,15 @@ export function sampleBetween2(sample:GLMat.vec2, xmin:number,xmax:number,ymin:n
 export function abs(v:vec3){
     return <vec3>v.map(c=>Math.abs(c));
 }
+export function absdist(n:number, n2:number, delta=EPSILON){
+    return Math.abs(n-n2) < delta
+}
 
 export function debugSample(scene:Scene):boolean{
-    return DEBUG_SAMPLE && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
+    return DEBUG_SAMPLE && absdist(scene.sample[0],DEBUG_SAMPLE[0], 0.002) && absdist(scene.sample[1], DEBUG_SAMPLE[1], 0.002);
+}
+export function debugSample2(scene:Scene):boolean{
+    return DEBUG_SAMPLE2 && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
 }
 export function calculateHitCode(code:number):vec3{
     //code = 5;

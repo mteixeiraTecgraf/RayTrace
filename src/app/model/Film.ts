@@ -1,9 +1,10 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
-import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scale, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2 } from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX, verbose3 } from "./config";
+import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, rotate, sampleBetween, sampleBetween2, scale, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, translate, transpose, verbose, verbose2, verbose3 } from "./utils";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
 import { Material, PhongMaterial } from "./Material";
+import { mat4 } from "gl-matrix";
 
 
 export const EPSILON = Math.pow(10,-5);
@@ -314,15 +315,19 @@ export class Scene{
     TraceRay(ray: Ray): vec3 {
         if(this.recursionCount>=TRACE_RAY_RECURSION_MAX)return [0,0,0];
         this.recursionCount++;
+        
+        setVerbose(debugSample(this));
         let c = this._TraceRay(ray);
+        
+        setVerbose(false);
         this.recursionCount--;
         return c;
     }
     _TraceRay(ray: Ray): vec3 {
-        setVerbose(debugSample(this));
+        //setVerbose(debugSample(this));
         var hit = this.ComputeIntersection(ray);
         
-        setVerbose(false);
+        //setVerbose(false);
         if (hit)
         {
             if(DEBUG_TRACE_POINT && distance(hit?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
@@ -360,14 +365,17 @@ export class Scene{
                     //return <vec3>[0,0,1]
                     return calculateHitCode(hit.instanceRef)
                 }
-                if(debugSample(this))
-                {
-                    console.log("Trace", ray, hit)
-                }
                 
                 if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
+                if(verbose3)console.log("@MARK2::Evaluated to ", c);
                 
+                if(debugSample(this))
+                {
+                    console.log("Trace", ray, hit)
+                    return [0,0,1];
+                }
+
                 if(true && sampleBetween(ray, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]))
                     return [0,1,0];
                 //console.log("Hit Some ", c, hit);
@@ -454,6 +462,7 @@ export class Scene{
     
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
+        if(verbose)console.log("MARK2::Compute Intersections in Scene and ray", ray);
         const v2 = sampleBetween2(this.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]);
         var t = Infinity;
         var p:vec3 = [0,0,0];
@@ -471,33 +480,8 @@ export class Scene{
         */
        var bestHit = this.tester.Test(ray);
         //this.tester.Test()
-        if(verbose3)console.log("Hit Object Final", bestHit);
+        if(verbose3)console.log("MARK2::Hit Object Final", bestHit);
         return bestHit;
-
-        //var c = 
-        var i = ray.origin[0]*this.W;
-        var j = ray.origin[1]*this.H;
-        
-        var resMat = 0;
-        if (i < (this.W / 2))
-        {
-            
-            if (j < (this.H / 2))
-            {
-            //console.log("Teste", i);
-                resMat = 0;
-        
-            }
-            else resMat = 1; 
-        }
-        else{
-           
-            if (j < (this.H / 2))
-                resMat = 2;   
-            else 
-                resMat = 3;  
-        }
-        //return {material:this.materials[resMat], p:[0,0,0], t:10, n:[0,0,0]}
     }
     temp(ray: Ray): vec3
     {
@@ -533,7 +517,23 @@ export class Scene{
 }
 type Instance = {name:string, material?:Material, light?:Light,shape:Shape, transform:Transform};
 type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:Instance}
+type MatrixPipeAction = (mat:mat4)=>mat4;
 
+export function translatePipe(vec:vec3):MatrixPipeAction{
+    return function(mat:mat4){
+        return translate(mat, vec);
+    }
+}
+export function scalePipe(vec:vec3):MatrixPipeAction{
+    return function(mat:mat4){
+        return scaleMat(mat, vec);
+    }
+}
+export function rotatePipe(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
+    return function(mat:mat4){
+        return rotate(mat, n, axis);
+    }
+}
 export class Transform{
     toLocal(origin: vec3) {
         return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.inverse))
@@ -542,7 +542,7 @@ export class Transform{
         return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.matrix))
     }
     toGlobalT(origin: vec3) {
-        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), transpose(this.matrix)))
+        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), transpose(this.inverse)))
     }
     toLocalRay(ray:Ray):Ray
     {
@@ -577,6 +577,14 @@ export class Transform{
         
         console.log("MAtrix", matrix, this.inverse)
     }
+    static fromPipe(...actions:MatrixPipeAction[]):Transform
+    {
+        var mat = actions.reverse().reduce((old:mat4, v:MatrixPipeAction)=>v(old), identity());
+        return new Transform(mat);
+    }
+    static scale = scalePipe;
+    static rotate = rotatePipe;
+    static translate = translatePipe;
     static fromScaleAndTranslation(translation:vec3=[0,0,0], sx:number=1,sy:number=1,sz:number=1)
     {
         var scale = createMat4([sx,0,0], [0, sy,0], [0,0,sz], [0,0,0])
@@ -717,7 +725,7 @@ export class IntersectionTester{
     {        
         if(!node) return;
         
-        if(verbose) console.log("Computing Box intersections", ray, node);
+        if(verbose) console.log("MARK2::Computing Box intersections", ray, node);
         var hit = node.box?.ComputeIntersection(ray);
         
             
@@ -743,7 +751,7 @@ export class IntersectionTester{
             //console.log("ComputeIntersection", thit);
             var hit = node.instance!.transform.toGlobalHit(tHit);
             if(hit) {
-                if(verbose) console.log("Computing Hit", ray, node, tRay, tHit, hit);
+                if(verbose) console.log("MARK2::Computing Hit", ray, node, tRay, tHit, hit);
                 hit.material = node.instance.material;
                 hit.light = node.instance.light;
                 hit.instanceRef = v;
@@ -761,7 +769,7 @@ export class IntersectionTester{
 
         //testLeft = <Hit>{...testLeft, instanceRef:v};
         //testRight = <Hit>{...testRight, instanceRef:v};
-        return this.CompareHits(testRight, testLeft);
+        return this.CompareHits(this.SafeHit(testRight), this.SafeHit(testLeft));
 
     }
 
@@ -821,5 +829,10 @@ export class IntersectionTester{
             return h1;
         }
         return h2;
+    }
+    SafeHit(hit:Hit|undefined)
+    {
+        if(!hit || hit.t < EPSILON) return;
+        return hit;
     }
 }
