@@ -4,3 +4,4 @@ export * from "./Film";
 export * from "./Light";
 export * from "./Material";
 export * from "./Shapes";
+export * from "./Transform";
