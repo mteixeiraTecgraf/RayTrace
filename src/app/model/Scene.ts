@@ -109,30 +109,13 @@ export class Scene{
             }
             else if(hit.material)
             {
-                if(hit.uv){
-                    //return min([1,1,1],add2(scale([1,0,0],hit.uv[0]), scale([0,1,0],hit.uv[1])));
-                }
-
-                if(FORCCE_HIT) return <vec3>[1,0,0];
-                if(FORCCE_HIT_ON_VERTEX  && hit.forceOnVertex) return <vec3>[1,0,0];
-                if(FORCCE_HIT_MAT_CODE&& hit.instanceRef>0)
-                {
-                    //return <vec3>[0,0,1]
-                    return calculateHitCode(hit.instanceRef)
-                }
+                if(this.beforeMatEvalCheck(hit))return this.checkResult;
                 
                 if(verbose3)console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
-                if(verbose3)console.log("@MARK2::Evaluated to ", c);
+                if(verbose3)console.log("Evaluated to ", c);
                 
-                if(debugSample(this))
-                {
-                    console.log("Trace", ray, hit)
-                    return [0,0,1];
-                }
-
-                if(true && sampleBetween(ray, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]))
-                    return [0,1,0];
+                if(this.afterMatEvalCheck(hit, ray))return this.checkResult;
                 //console.log("Hit Some ", c, hit);
                 return c;
             }
@@ -145,6 +128,46 @@ export class Scene{
         //console.log("Hit None");
         return [0,0,0];
             //return this.temp(ray);
+    }
+    checkResult:vec3 = [0,0,0]
+    afterMatEvalCheck(hit:Hit, ray:Ray){
+        
+        if(debugSample(this))
+        {
+            console.log("Trace", ray, hit)
+            this.checkResult =  [0,0,1];
+            return true;
+        }
+
+        if(true && sampleBetween(ray, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]))
+        {
+
+            this.checkResult =  [0,1,0];
+            return true;
+        }
+        return false;
+    }
+    beforeMatEvalCheck(hit:Hit){
+        if(hit.uv){
+            //return min([1,1,1],add2(scale([1,0,0],hit.uv[0]), scale([0,1,0],hit.uv[1])));
+        }
+
+        if(FORCCE_HIT) {
+            this.checkResult = [1,0,0];
+            return true;
+        }
+        if(FORCCE_HIT_ON_VERTEX  && hit.forceOnVertex){
+
+            this.checkResult =  [1,0,0];
+            return true
+        } 
+        if(FORCCE_HIT_MAT_CODE&& hit.instanceRef>0)
+        {
+            //return <vec3>[0,0,1]
+            this.checkResult = calculateHitCode(hit.instanceRef)
+            return true
+        }
+        return false;
     }
     AddAreaLight(light:AreaLight) {
         //this.lightSources.push(light);

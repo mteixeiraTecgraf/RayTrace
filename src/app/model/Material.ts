@@ -30,7 +30,7 @@ export class PhongMaterial extends Material{
         //vec3.normalize(v,)
         scene.lights.forEach(instance=>{
             var ls = instance.light!;
-            if(verbose2) console.log("@MARK2::Checking light", instance);
+            if(verbose2) console.log("Checking light", instance);
             if(debugSample(scene))
             {
                 console.log("Sample ", DEBUG_SAMPLE, hit, origin)
@@ -40,7 +40,7 @@ export class PhongMaterial extends Material{
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
             
             
-            if(verbose2) console.log("@MARK2::Radiance Calculated", li, l, hitCode);
+            if(verbose2) console.log("Radiance Calculated", li, l, hitCode);
 
             if(FORCCE_HIT_OCL_MAT_CODE)
             {

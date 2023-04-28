@@ -1,4 +1,3 @@
-import { vec3 } from "gl-matrix";
 import { AreaLight, Camera, Film, PontualLight, Scene } from ".";
 import { Hit, Ray } from "./Primitive";
 import { Box, Plane } from "./Shapes";
