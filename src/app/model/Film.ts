@@ -89,6 +89,11 @@ export class Camera{
         return this._o;
     }
 
+    addToOrigin(dir:vec3)
+    {
+        return add2(this.origin, dir);
+    }
+
     RotateDefault(rot:number, f:(out: vec3, a: vec3, b: vec3, rad: number)=> vec3)
     {
         this.u = f([0,0,0],this.u, [0,0,0], Math.PI*rot/180)

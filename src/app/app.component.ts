@@ -1,9 +1,9 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { glMatrix, mat2, vec3 } from 'gl-matrix';
-import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform, rotate, scale, translate } from './model/Film';
-import { Box, Plane, Sphere, Vertex } from './model/Shapes';
-import { Material, PhongMaterial, PhongMetal, TextureMaterial } from './model/Material';
-import { ANGLE, REPEAT_PX, RESOLUTION } from './model/config';
+import { vec3 } from 'gl-matrix';
+import { Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
+import { Box, Plane, Sphere, Vertex } from './model';
+import { Material, PhongMaterial, PhongMetal, TextureMaterial } from './model';
+import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
 import { add2 } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Subject, firstValueFrom } from 'rxjs';
@@ -121,7 +121,7 @@ export class AppComponent implements OnInit{
     
     this.addSphere(scene, Transform.fromPipe(translate([0,0,1]))); 
     scene.camera.RotateX(-10);    
-    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.5,])
+    scene.camera.addToOrigin([0,-2.0,1.5,])
   }
   async scene2(scene:Scene){
     this.addBox(scene, Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8));
@@ -140,8 +140,8 @@ export class AppComponent implements OnInit{
   async scene3(scene:Scene){
     scene.camera.RotateX(-45)
     scene.camera.RotateZ(-0)
-    scene.camera.origin = add2(scene.camera.origin,[-0,-2.0,2.8,])
-    //scene.camera.origin = add2(scene.camera.origin,[0,1.5,1.5]);
+    scene.camera.addToOrigin([-0,-2.0,2.8,])
+    scene.camera.addToOrigin([0,1.5,1.5]);
     this.SimpleLightScene(scene);
     this.addFloor(scene, Transform.fromPipe(
         translate([-0.5,-0.5,-1]),
@@ -194,7 +194,7 @@ export class AppComponent implements OnInit{
   }
   async boxSceneBase(scene:Scene){
     
-    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.5,])
+    scene.camera.addToOrigin([0,-2.0,1.5,])
     this.SimpleLightScene(scene);
     this.addCeil(scene)
     this.addBack(scene);
@@ -206,7 +206,7 @@ export class AppComponent implements OnInit{
     //await this.addTorus(scene);
   }
   async scene4(scene:Scene){
-    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.2,])
+    scene.camera.addToOrigin([0,-2.0,1.2,])
     scene.camera.RotateX(-32.3);
     scene.camera.angle = 15;
     this.boxSceneBase(scene);
@@ -221,7 +221,7 @@ export class AppComponent implements OnInit{
     this.scene.camera.RotateZ(-40)
   }
   async scene5(scene:Scene){
-    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.2,])
+    scene.camera.addToOrigin([0,-2.0,1.2,])
     scene.camera.RotateX(-32.3);
     scene.camera.angle = 15;
     this.boxSceneBase(scene);
