@@ -1,5 +1,5 @@
 import { vec3 } from "gl-matrix";
-import { EPSILON, Hit, Ray } from "./Film";
+import { EPSILON, Hit, Ray } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
 import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
 

@@ -1,8 +1,9 @@
 import { vec3 } from "gl-matrix";
-import { Scene, createRay } from "./Film";
+import { Scene } from "./Film";
 import { distance, normalize, add2, add3, sub2, dot, minus, cross, length } from "./utils";
 import * as utils from "./utils";
 import { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT_OCL_MAT_CODE, LIGHT_FACTOR } from "./config";
+import { createRay } from "./Primitive";
 
 export abstract class Light{
     public Intensidade: vec3 = [1,1,1];

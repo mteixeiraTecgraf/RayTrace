@@ -1,6 +1,6 @@
 import { mat4, vec3 } from "gl-matrix";
 import { createMat4, cross, getTranslation, identity, inverse, mulMat, scaleMat, sub2, toVec3, toVec4, transpose } from "./utils";
-import { Hit, Ray } from "./Film";
+import { Hit, Ray } from "./Primitive";
 import * as GLMat from  "gl-matrix";
 import * as utils from "./utils";
 
