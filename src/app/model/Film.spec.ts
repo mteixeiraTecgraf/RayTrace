@@ -1,5 +1,6 @@
 import { vec3 } from "gl-matrix";
-import { AreaLight, Camera, Film, Hit, PontualLight, Ray, Scene } from "./Film";
+import { AreaLight, Camera, Film, PontualLight, Scene } from ".";
+import { Hit, Ray } from "./Primitive";
 import { Box, Plane } from "./Shapes";
 import { normalize } from "./utils";
 import { LIGHT_FACTOR } from "./config";
@@ -302,7 +303,7 @@ describe('Film', () => {
             it('radiance 2 Mat', ()=>{
                 //let v = light.Radiance(scene, [1,1,2], [1,0,0] )
                 let m = new PhongMaterial([1,0,0],[0,0,0],1);
-                let hit = <Hit>{p:[1,1,2], n:[-1,0,0],backface:false,t:Math.sqrt(2),material:m};
+                let hit = <Hit>{p:[1,1,2], n:[-1,0,0],backface:false,t:Math.sqrt(2),material:m, forceOnVertex:false,instanceRef:-1,uv:[0,0]};
                 var c = m.Eval(scene, hit, [1,0,2]);
                 
                 //let factor = 2*Math.PI/2;

@@ -1,6 +1,6 @@
 import { vec3 } from "gl-matrix";
 import { Hit, createRay } from "./Primitive";
-import { Scene } from "./Film";
+import { Scene } from "./Scene";
 import { abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2, verbose3 } from "./utils";
 import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";

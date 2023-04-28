@@ -1,8 +1,9 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
-import { Scene } from "./Film";
+//import { Scene } from "./Film";
 import { DEBUG_SAMPLE, DEBUG_SAMPLE2, REPEAT_PX } from "./config";
 import { EPSILON, Ray } from "./Primitive";
+import { Scene } from "./Scene";
 
 export var verbose = false;
 export var verbose2 = false;
