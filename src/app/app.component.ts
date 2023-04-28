@@ -1,12 +1,12 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { glMatrix, mat2, vec3 } from 'gl-matrix';
-import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform } from './model/Film';
+import { AreaLight, Camera, Film, Light, PontualLight, Scene, Transform, rotate, scale, translate } from './model/Film';
 import { Box, Plane, Sphere, Vertex } from './model/Shapes';
-import { PhongMaterial, PhongMetal, TextureMaterial } from './model/Material';
+import { Material, PhongMaterial, PhongMetal, TextureMaterial } from './model/Material';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model/config';
-import { add2, identity, rotate, scaleMat, translate } from './model/utils';
+import { add2 } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 
 
 const setPixel = (myImageData:any, x:number, y:number, width:number, height:number, r:number, g:number, b:number, a:number = 255) => {
@@ -34,22 +34,35 @@ export class AppComponent implements OnInit{
   @ViewChild('canvas', { static: true }) 
   canvas: ElementRef<HTMLCanvasElement>;
   ctx :CanvasRenderingContext2D;
-  constructor(private http:HttpClient){}
+  constructor(private http:HttpClient){    
+    var subj = this.progressObj.pipe(
+      //bufferTime(1000), 
+      //bufferCount(20), 
+      //filter(v=>v.length>0), 
+      //map(v=>v[v.length-1])
+    ).subscribe(v=>
+      {
+        //console.log("Pixel",v)
+        //this.progress=v[v.length-1]
+      })
+  }
+  
+  progress = 0;
+  progressSubj = new Subject<number>();
+  progressObj = this.progressSubj.asObservable();
   ngOnInit(): void {
     
     this.ctx = this.canvas.nativeElement.getContext('2d') as CanvasRenderingContext2D;
     //this.drawRect();
+    
     this.initScene();
+
   }
   scene:Scene;
   W = RESOLUTION[0];
   H = RESOLUTION[1];
   angle = ANGLE;
-  initScene(){
-    this.testScene1();
-  }
-  
-  async testScene1(){
+  async initScene(){
     //const W = this.ctx.canvas.width;
     //const H = this.ctx.canvas.height;
     if(false)
@@ -68,40 +81,162 @@ export class AppComponent implements OnInit{
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    var ambLightPot = 0.4;
-    var dz = 1;
+    var ambLightPot = 0.0;
+    //var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
-    var camera = new Camera([0,-2.0,0.5+dz,],u,v,w,this.angle, 1, this.W/this.H );
+    var camera = new Camera([0,0,0,],u,v,w,this.angle, 1, this.W/this.H );
 
-    camera.RotateX(-21.3);
     var scene = new Scene(film, camera, [ambLightPot,ambLightPot,ambLightPot]);
     this.scene = scene;
     //this.prepareSimpleLightBackBoxScene(scene);
     
+    //await this.scene1(scene);
+    await this.scene2(scene);
+    //await this.scene3(scene);
+    //await this.scene4(scene);
+    //await this.scene5(scene);
+    //await this.boxSceneBase(scene);
+    //await this.bunnysceneSimple(scene);
+    scene.prepareScene();
+        
+    scene.Render(this.ctx, (i,n)=>{
+      this.progress=i*100/n;
+      //this.progressSubj.next(i*100/n)
+      console.log("Pixel",i, i*100/n)
+    });
+    scene.ReportComputations();
+    //subj.unsubscribe();
+  }
+  
+  async testScene1(scene:Scene){
+
+  }
+  async scene1(scene:Scene){
+    scene.AddPonctualLight(new PontualLight([0,-2,2],))   
+    scene.AddPonctualLight(new PontualLight([-2,-0,2],))   
+    this.addFloor(scene, Transform.fromPipe(
+        translate([-0.5,-0.5,-1]),
+        scale([10,10,0.1]),
+      ));
+    
+    this.addSphere(scene, Transform.fromPipe(translate([0,0,1]))); 
+    scene.camera.RotateX(-10);    
+    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.5,])
+  }
+  async scene2(scene:Scene){
+    this.addBox(scene, Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8));
+    this.boxSceneBase(scene);
+    await this.addVertices(scene);
+    
+    this.addSphere(scene, Transform.fromPipe(
+      scale([0.5,0.5,0.5]),
+      translate([0.5,0.5,0.5]),
+      //scale([0.2,0.2,0.4]),
+      //rotate(45, "y"),
+      //translate([1,0.5,0]),
+
+    ));
+  }
+  async scene3(scene:Scene){
+    scene.camera.RotateX(-45)
+    scene.camera.RotateZ(-0)
+    scene.camera.origin = add2(scene.camera.origin,[-0,-2.0,2.8,])
+    //scene.camera.origin = add2(scene.camera.origin,[0,1.5,1.5]);
+    this.SimpleLightScene(scene);
+    this.addFloor(scene, Transform.fromPipe(
+        translate([-0.5,-0.5,-1]),
+        scale([10,10,0.1]),
+      ));
+      this.addBox(scene,
+        Transform.fromPipe(
+          translate([-3,-1,0]),
+          //scale([10,10,0.1]),
+          //rotate(10,"x"),
+        ));
+        this.addBox(scene,
+          Transform.fromPipe(
+            rotate(-30,"y"),
+            translate([-1.5,0,0]),
+            //scale([10,10,0.1]),
+          )
+        );
+        this.addBox(scene,
+          Transform.fromPipe(
+            rotate(-45,"y"),
+            translate([0.0,1,0]),
+            //scale([10,10,0.1]),
+          )
+        );
+        this.addBox(scene,
+          Transform.fromPipe(
+            rotate(-60,"y"),
+            translate([1.5,0,0]),
+            //scale([10,10,0.1]),
+          )
+        );
+        this.addBox(scene,
+          Transform.fromPipe(
+            rotate(-90,"y"),
+            translate([3.0,-1,0]),
+            //scale([10,10,0.1]),
+          )
+        );
+          this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
+      /*
+    this.addBox(scene,
+      Transform.fromPipe(
+        translate([-2,0,0]),
+        //scale([10,10,0.1]),
+        rotate(10,"x"),
+      ));
+      */
+    //await this.addVertices(scene);
+  }
+  async boxSceneBase(scene:Scene){
+    
+    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.5,])
     this.SimpleLightScene(scene);
     this.addCeil(scene)
     this.addBack(scene);
     this.addLateralReflective(scene);
     this.addLeft(scene);
     this.addFloor(scene);
-    this.addBox(scene);
-    this.addSpheres(scene);
-    await this.addVertices(scene);
+    //this.addSpheres(scene);
+    //await this.addVertices(scene);
     //await this.addTorus(scene);
-    await this.addBunny(scene);
-    //console.log("Torus", t);
-    //return;
-    
-    //this.prepareSimpleLightScene(scene);
-    //this.prepareBoxScene(scene);
-    //this.prepareScene1(scene);
-    //var scene = new Scene(film, );
-    //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
-    scene.Render(this.ctx);
-    scene.ReportComputations();
   }
-  async addSphere(scene: Scene, transform:Transform = new Transform()) {
-    var material = new PhongMaterial([1,0,0],[1,1,1], 20);
+  async scene4(scene:Scene){
+    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.2,])
+    scene.camera.RotateX(-32.3);
+    scene.camera.angle = 15;
+    this.boxSceneBase(scene);
+    this.addFloor(scene, Transform.fromPipe(
+        translate([-0.5,-0.5,-1]),
+        scale([10,10,0.1]),
+      ));
+    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([0.6,0.6,0.6]), 0.9));
+    await this.addBunny(scene,"bunny_simple2.off");
+    this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
+    this.scene.camera.RotateOriginZ(-40)
+    this.scene.camera.RotateZ(-40)
+  }
+  async scene5(scene:Scene){
+    scene.camera.origin = add2(scene.camera.origin,[0,-2.0,1.2,])
+    scene.camera.RotateX(-32.3);
+    scene.camera.angle = 15;
+    this.boxSceneBase(scene);
+    this.addFloor(scene, Transform.fromPipe(
+        translate([-0.5,-0.5,-1]),
+        scale([10,10,0.1]),
+      ));
+    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([0.6,0.6,0.6]), 0.9));
+    await this.addBunny(scene,"bunny.off");
+    this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
+    this.scene.camera.RotateOriginZ(-40)
+    this.scene.camera.RotateZ(-40)
+    
+  }
+  async addSphere(scene: Scene, transform:Transform = new Transform(), material:Material = new PhongMaterial([1,0,0],[1,1,1], 20)) {
     //scaleMat(mat, [1,0,]);
     scene.AddEntity({name:"Sphere",material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
@@ -130,17 +265,17 @@ export class AppComponent implements OnInit{
   async addSpheres(scene: Scene) {
     
     this.addSphere(scene, Transform.fromPipe(
-      Transform.translate([0,0,1]),
-      Transform.scale([0.2,0.2,0.4]),
-      Transform.rotate(45, "y"),
-      Transform.translate([1,0.5,0]),
+      translate([0,0,1]),
+      scale([0.2,0.2,0.4]),
+      rotate(45, "y"),
+      translate([1,0.5,0]),
 
     ));
     this.addSphere(scene, Transform.fromPipe(
-      Transform.translate([0,0,1]),
-      Transform.scale([0.3,0.3,0.1]),
-      //Transform.rotate(45, "y"),
-      Transform.translate([1,1.5,0]),
+      translate([0,0,1]),
+      scale([0.3,0.3,0.1]),
+      //rotate(45, "y"),
+      translate([1,1.5,0]),
 
     ));
   }
@@ -149,27 +284,27 @@ export class AppComponent implements OnInit{
     var t = await this.loadOff("double_torus.off");
     await this.addMesh(scene, t.v, t.p, 
         Transform.fromPipe(
-          Transform.scale([0.05,0.05,0.05]),
-          Transform.rotate(-90,"x"),
+          scale([0.05,0.05,0.05]),
+          rotate(-90,"x"),
           ))
   }
-  async addBunny(scene: Scene) {
-    //var t = await this.loadOff("bunny_simple2.off");
-    var t = await this.loadOff("bunny.off");
-    await this.addMesh(scene, t.v, t.p, 
-        Transform.fromPipe(
-          Transform.scale([0.51,0.51,0.51]),
-          Transform.rotate(90,"x"),
-          Transform.rotate(90,"z"),
-          Transform.translate([0,1,0.51]),
-          ))
+  async addBunny(scene: Scene, bunnyModel:string, transform:Transform = Transform.fromPipe(
+                  scale([0.51,0.51,0.51]),
+                  rotate(90,"x"),
+                  rotate(60,"z"),
+                  translate([-0.5,-0.2,0.51]),
+                  )
+    ) {
+    var t = await this.loadOff(bunnyModel);
+    await this.addMesh(scene, t.v, t.p, transform)
+        
   }
 
   async addVertices(scene: Scene) {
-    const material = new PhongMaterial([0,1,0],[0,0,0]);
+    //const material = new PhongMaterial([0,1,0],[0,0,0]);
     //scene.AddEntity({name:"vertice",shape: new Vertex([0,0,0],[1,0,0],[0,1,1/2]), transform:new Transform(), material})
     
-    //const material2 = new PhongMaterial([0,1,1],[0,0,0]);
+    //const material = new PhongMaterial([0,1,1],[0,0,0]);
     //scene.AddEntity({name:"vertice2",shape: new Vertex([1.9,1,0.1],[0.9,2,0.1],[0.9,1,0.1]), transform:new Transform(), material:material2})
     await this.addMesh(scene, [[-1,0,0],[-0.5,0.5,0], [-1.5,0.5,0], [-1,0.25,0.5]], [[0,1,2],[0,1,3],[1,2,3],[2,0,3]])
     await this.addMesh(scene, [
@@ -186,10 +321,10 @@ export class AppComponent implements OnInit{
         ...this.createPlaneVertexPoints(1,2,6,5),
       ],
       Transform.fromPipe(
-        Transform.scale([0.4,0.4,0.4]),
-        Transform.rotate( 135, "z"),
-        Transform.rotate( 45, "y"),
-        Transform.translate( [-1,0.8,1.8]),
+        scale([0.4,0.4,0.4]),
+        rotate( 135, "z"),
+        rotate( 45, "y"),
+        translate( [-1,0.8,1.8]),
       )
     )
   }
@@ -202,8 +337,9 @@ export class AppComponent implements OnInit{
   }
   async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform()) {
     //const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
-    const material2 = new PhongMetal(new PhongMaterial([0,1,1],[1,1,1],20),0);
-    //const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
+    //const material2 = new PhongMetal(new PhongMaterial([0,1,1],[1,1,1],20),0);
+    const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
+    await material2.waitLoad()
     //await material2.waitLoad();
     console.log("Mesh Start", vertexes, polygon);
     for(let p of polygon)
@@ -266,11 +402,13 @@ export class AppComponent implements OnInit{
     scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
 
   }
-  addFloor(scene:Scene){
+  addFloor(scene:Scene, transform:Transform=Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)){
     //rightwall mat
     var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
     //piso
-    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:
+      transform
+    })
    
   }
   simpleLightCeilScene(scene:Scene){
@@ -292,13 +430,13 @@ export class AppComponent implements OnInit{
     scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
     
   }
-  addBox(scene:Scene)
+  addBox(scene:Scene, transform: Transform = new Transform())
   {
     var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
     
     scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
       //[0,2,-1+dz], 1
-      transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+      transform:transform
       //transform:new Transform()
     })
   }
@@ -479,7 +617,9 @@ export class AppComponent implements OnInit{
     scene.Render(this.ctx);
   }
   animate(){
-    this.scene.camera.RotateX(15*Math.random()-7)
+    this.scene.camera.RotateOriginZ(-40)
+    this.scene.camera.RotateZ(-40)
+    //this.scene.camera.RotateX(15*Math.random()-7)
     this.scene.Render(this.ctx)
     /*
      this.ctx.fillStyle = 'red';

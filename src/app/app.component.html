@@ -1,7 +1,10 @@
 
 
 <canvas #canvas width="800" height="600"></canvas>
-<button (click)="animate()">Play</button>   
+<button (click)="animate()">Rotate</button>  
+<div class="progress">
+  <div class="progress-bar" role="progressbar" [style.width.%]="progress" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
+</div>
 <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
 <!-- * * * * * * * * * * * The content above * * * * * * * * * * * -->
 <!-- * * * * * * * * * * is only a placeholder * * * * * * * * * * -->

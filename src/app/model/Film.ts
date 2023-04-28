@@ -1,12 +1,14 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
-import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, rotate, sampleBetween, sampleBetween2, scale, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, translate, transpose, verbose, verbose2, verbose3 } from "./utils";
+import { add2, add3, calculateHitCode, createMat4, cross, debugSample, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
+import * as utils from "./utils";
 import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, LIGHT_FACTOR, LIMITS, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
 import { Material, PhongMaterial } from "./Material";
 import { mat4 } from "gl-matrix";
 
-
+export type ProgressAction = (i:number,total:number)=>void
+var DEFAULTPROGRESS: ProgressAction = ()=>{}
 export const EPSILON = Math.pow(10,-5);
 
 export class Film{
@@ -65,18 +67,57 @@ export class Film{
 
 export class Camera{
     toWorldMatric:GLMat.mat4 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-    constructor(public o:vec3, public u:vec3, public v: vec3, public w: vec3, public angle:number, public distance:number, public ratio:number)
+    constructor(private _o:vec3, public u:vec3, public v: vec3, public w: vec3, private _angle:number, public distance:number, public ratio:number)
     {
-        this.lookAt(u,v,w,o);   
+        this.lookAt(u,v,w,_o);   
+    }
+    set angle(value:number)
+    {
+        this._angle = value;
+    }
+    get angle()
+    {
+        return this._angle;
+    }
+    set origin(value:vec3)
+    {
+        this._o = value;
+        this.refresh();
+    }
+    get origin()
+    {
+        return this._o;
     }
 
+    RotateDefault(rot:number, f:(out: vec3, a: vec3, b: vec3, rad: number)=> vec3)
+    {
+        this.u = f([0,0,0],this.u, [0,0,0], Math.PI*rot/180)
+        this.v = f([0,0,0],this.v, [0,0,0], Math.PI*rot/180)
+        this.w = f([0,0,0],this.w, [0,0,0], Math.PI*rot/180)
+
+    }
+    RotateOriginZ(rot:number)
+    {
+        this._o = vec3.rotateZ([0,0,0],this._o, [0,0,0], Math.PI*rot/180)
+        this.refresh();
+    }
     RotateX(rot:number)
     {
-        this.u = vec3.rotateX([0,0,0],this.u, [0,0,0], Math.PI*rot/180)
-        this.v = vec3.rotateX([0,0,0],this.v, [0,0,0], Math.PI*rot/180)
-        this.w = vec3.rotateX([0,0,0],this.w, [0,0,0], Math.PI*rot/180)
-
-        this.lookAt(this.u, this.v, this.w, this.o);
+        this.RotateDefault(rot, vec3.rotateX);
+        this.refresh();
+    }
+    RotateY(rot:number)
+    {
+        this.RotateDefault(rot, vec3.rotateY);
+        this.refresh();
+    }
+    RotateZ(rot:number)
+    {
+        this.RotateDefault(rot, vec3.rotateZ);
+        this.refresh();
+    }
+    refresh(){
+        this.lookAt(this.u, this.v, this.w, this._o);
     }
     lookAt(u:vec3, v: vec3, w: vec3, o:vec3)
     {
@@ -148,14 +189,14 @@ export class PontualLight implements Light{
 
         var l = normalize(sub2(this.Position, p))
         var r = distance(p,this.Position);
-        var Li = scale(this.Potencia,1/(r*r*LIGHT_FACTOR))
+        var Li = utils.scale(this.Potencia,1/(r*r*LIGHT_FACTOR))
         
         //console.log("Radiance", this.Potencia, l, r,Li, r, 1/(r*r*0.5));
         return {li:Li, l:l, hitCode}
     }
     Potencia:vec3;
     constructor(public Position: vec3 = [0,0,0], public Intensidade: vec3 = [1,1,1]){
-        this.Potencia = scale(this.Intensidade, 2*Math.PI)
+        this.Potencia = utils.scale(this.Intensidade, 2*Math.PI)
     }
 
 }
@@ -190,7 +231,7 @@ export class AreaLight implements Light{
         var {pos, normal:ns} = this.getSample(ni, nj)
 
         var rayo = p; 
-        var l = scale(normalize(sub2(pos,p)),1/this.SAMPLE_COUNT); 
+        var l = utils.scale(normalize(sub2(pos,p)),1/this.SAMPLE_COUNT); 
         var ray = createRay(rayo, l, {addEps:true});
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
@@ -204,7 +245,7 @@ export class AreaLight implements Light{
         {
             var r = distance(p,pos);
             //console.log("distance", r)
-            var Li = scale(this.Potencia,(dot(minus(l),ns)/(r*r*LIGHT_FACTOR))*this.AreaPart)
+            var Li = utils.scale(this.Potencia,(dot(minus(l),ns)/(r*r*LIGHT_FACTOR))*this.AreaPart)
             //console.log("distance", l, ns, dot(minus(l),ns), this.AreaPart, Li, this.Area)
             
             //console.log("Radiance", r,Li);
@@ -218,8 +259,8 @@ export class AreaLight implements Light{
         return {
             pos:add3(
                 this.Position,
-                scale(this.ArestaI,(ni+this.random())/this.sqr_SAMPLE_COUNT), 
-                scale(this.Arestaj,(nj+this.random())/this.sqr_SAMPLE_COUNT)
+                utils.scale(this.ArestaI,(ni+this.random())/this.sqr_SAMPLE_COUNT), 
+                utils.scale(this.Arestaj,(nj+this.random())/this.sqr_SAMPLE_COUNT)
             ),
             normal: this.Normal,
         };
@@ -237,7 +278,7 @@ export function createRay(origin:vec3, direction:vec3, options:{addEps?:boolean,
     var rayo = origin
     var rayd = direction
     if(options.addEps)
-        rayo = add2(rayo, scale(rayd, EPSILON))
+        rayo = add2(rayo, utils.scale(rayd, EPSILON))
     if(options.normalizeDirection)
         rayd = normalize(rayd);
     var ray:Ray = {origin:rayo, direction:rayd, camera:false};
@@ -277,14 +318,17 @@ export class Scene{
     get Sample(){
         return this.sample;
     }
-    Render(Context:CanvasRenderingContext2D){
+    prepareScene(){
         this.tester.generateStructure();
+    }
+    Render(Context:CanvasRenderingContext2D, progress:ProgressAction = DEFAULTPROGRESS){
         const film = this.Film
         const count = film.GetSampleCount();
+        //return;
         for(let i = 0; i<this.W;i++ )
         {
-        
-            console.log("Pixel", i)
+            progress(i,this.W);
+            
             for(let j = 0; j<this.H;j++ )
             {
                 var c:vec3 = [0,0,0]
@@ -304,10 +348,11 @@ export class Scene{
                     c = add2(c,this.TraceRay(ray));
                     if(verbose2) console.log("Pixel", i,j,c)
                 }
-                film.SetPixelValue(i,j,scale(c, 1/count));
+                film.SetPixelValue(i,j,utils.scale(c, 1/count));
                 
             }
         }
+        progress(this.W,this.W);
         this.Film.RenderImage(Context);
         
     }
@@ -346,7 +391,7 @@ export class Scene{
                 }
                 var c:vec3 = [0,0,0];
                 var r:number = hit.t;
-                c = add2(this.ambientLight, scale(hit.light.Potencia,1/r*r));
+                c = add2(this.ambientLight, utils.scale(hit.light.Potencia,1/r*r));
                 //c = hit.light.Potencia;
                 //c = scale(c,255)
                 
@@ -426,7 +471,7 @@ export class Scene{
     tester = new IntersectionTester()
     AddEntity(arg0: Instance) {
         //this.obj.push(arg0);
-        console.log("AreaAddEntity", arg0)
+        //console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
         this.tester.Add(arg0);
 
@@ -519,19 +564,19 @@ type Instance = {name:string, material?:Material, light?:Light,shape:Shape, tran
 type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:Instance}
 type MatrixPipeAction = (mat:mat4)=>mat4;
 
-export function translatePipe(vec:vec3):MatrixPipeAction{
+export function translate(vec:vec3):MatrixPipeAction{
     return function(mat:mat4){
-        return translate(mat, vec);
+        return utils.translate(mat, vec);
     }
 }
-export function scalePipe(vec:vec3):MatrixPipeAction{
+export function scale(vec:vec3):MatrixPipeAction{
     return function(mat:mat4){
         return scaleMat(mat, vec);
     }
 }
-export function rotatePipe(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
+export function rotate(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
     return function(mat:mat4){
-        return rotate(mat, n, axis);
+        return utils.rotate(mat, n, axis);
     }
 }
 export class Transform{
@@ -582,9 +627,9 @@ export class Transform{
         var mat = actions.reverse().reduce((old:mat4, v:MatrixPipeAction)=>v(old), identity());
         return new Transform(mat);
     }
-    static scale = scalePipe;
-    static rotate = rotatePipe;
-    static translate = translatePipe;
+    static scale = scale;
+    static rotate = rotate;
+    static translate = translate;
     static fromScaleAndTranslation(translation:vec3=[0,0,0], sx:number=1,sy:number=1,sz:number=1)
     {
         var scale = createMat4([sx,0,0], [0, sy,0], [0,0,sz], [0,0,0])
@@ -634,13 +679,13 @@ export class IntersectionTester{
 
         }
     }
-    generateStructure(){
+    generateStructure(progress:ProgressAction = DEFAULTPROGRESS){
         var centroids = this.instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
         var bmax = max(...centroids);
         var bmin = min(...centroids);
         var bbox = new Box(bmin, bmax);
 
-        var res = this.divideInstances(this.instances)
+        var res = this.divideInstances(this.instances, 0,this.instances.length, progress)
         if(res) this.root = res;
         console.log("Structure", this.root)
 
@@ -651,10 +696,10 @@ export class IntersectionTester{
 
         var globalsborders = bbox.Borders().map(instance.transform.toGlobal, instance.transform);
         var newBBox =  new Box(min(...globalsborders), max(...globalsborders));
-        console.log("BoundBox Transf", instance, globalsborders, newBBox);
+        //console.log("BoundBox Transf", instance, globalsborders, newBBox);
         return newBBox;
     }
-    divideInstances(instances:Instance[]):AccNode|undefined{
+    divideInstances(instances:Instance[], init: number = 0, end: number = 0, progress:ProgressAction = DEFAULTPROGRESS):AccNode|undefined{
         
         if(instances.length==0){
             return;
@@ -663,6 +708,7 @@ export class IntersectionTester{
             return {box: this.getBoundingBox(instances[0]), instance: instances[0],};
         }
 
+        //progress(end+init/2)
         var centroids = instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
         var bmax = max(...centroids);
         var bmin = min(...centroids);
@@ -688,11 +734,23 @@ export class IntersectionTester{
         var h1 = sorted.slice(0,half);
         var h2 = sorted.slice(half);
 
-        var n1 = this.divideInstances(h1);
-        var n2 = this.divideInstances(h2);
+        //progress(end,end);
+        //console.log("Init", init,end)
+        //progress(0,end);
+        progress(0,100);
+        var n1 = this.divideInstances(h1, init, (init+end)/2, (i,n)=>progress((i*50/n),100));
+        //progress(end,end);
+        //console.log("Init mid", init,end)
+        //progress((init+end)/2,end);
+        progress(50,100);
+        var n2 = this.divideInstances(h2, (init+end)/2, end, (i,n)=>progress(50+(i*50/n),100));
+        
+        //console.log("Init end", init,end)
+        //progress(end,end);
+        progress(100,100);
 
         
-        console.log("BoundBox Transf Join", n1, n2);
+        //console.log("BoundBox Transf Join", n1, n2);
         
         return {box: new Box(
             min(n1!.box!.bMin, n2!.box!.bMin), 
