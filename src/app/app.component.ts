@@ -91,10 +91,10 @@ export class AppComponent implements OnInit{
     //this.prepareSimpleLightBackBoxScene(scene);
     
     //await this.scene1(scene);
-    await this.scene2(scene);
+    //await this.scene2(scene);
     //await this.scene3(scene);
     //await this.scene4(scene);
-    //await this.scene5(scene);
+    await this.scene5(scene);
     //await this.boxSceneBase(scene);
     //await this.bunnysceneSimple(scene);
     scene.prepareScene();
@@ -131,9 +131,6 @@ export class AppComponent implements OnInit{
     this.addSphere(scene, Transform.fromPipe(
       scale([0.5,0.5,0.5]),
       translate([0.5,0.5,0.5]),
-      //scale([0.2,0.2,0.4]),
-      //rotate(45, "y"),
-      //translate([1,0.5,0]),
 
     ));
   }
@@ -208,13 +205,13 @@ export class AppComponent implements OnInit{
   async scene4(scene:Scene){
     scene.camera.addToOrigin([0,-2.0,1.2,])
     scene.camera.RotateX(-32.3);
-    scene.camera.angle = 15;
+    scene.camera.angle = 20;
     this.boxSceneBase(scene);
     this.addFloor(scene, Transform.fromPipe(
         translate([-0.5,-0.5,-1]),
         scale([10,10,0.1]),
       ));
-    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([0.6,0.6,0.6]), 0.9));
+    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([1,0.6,0.6]), 0.2));
     await this.addBunny(scene,"bunny_simple2.off");
     this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
     this.scene.camera.RotateOriginZ(-40)
@@ -336,10 +333,10 @@ export class AppComponent implements OnInit{
     return [o,v1,add2(v1,e2), add2(o,e2)]
   }
   async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform()) {
-    //const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
+    const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
     //const material2 = new PhongMetal(new PhongMaterial([0,1,1],[1,1,1],20),0);
-    const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
-    await material2.waitLoad()
+    //const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
+    //await material2.waitLoad()
     //await material2.waitLoad();
     console.log("Mesh Start", vertexes, polygon);
     for(let p of polygon)

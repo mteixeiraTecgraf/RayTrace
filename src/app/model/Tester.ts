@@ -1,14 +1,14 @@
-import { DEFAULTPROGRESS, EPSILON, Hit, Instance, ProgressAction, Ray, getT } from "./Primitive";
+import { DEFAULTPROGRESS, EPSILON, Hit, EntityInstance, ProgressAction, Ray, getT } from "./Primitive";
 import { Box } from "./Shapes";
 import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, TEST_BRUTE_FORCE } from "./config";
 import { distance, max, min, verbose, verbose3 } from "./utils";
 
-export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:Instance}
+export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:EntityInstance}
 
 export class IntersectionTester{
     
-    instances :Instance[] = [];
-    Add(instance:Instance)
+    instances :EntityInstance[] = [];
+    Add(instance:EntityInstance)
     {
         this.instances.push(instance);
         return;
@@ -47,7 +47,7 @@ export class IntersectionTester{
         console.log("Structure", this.root)
 
     }
-    getBoundingBox(instance:Instance)
+    getBoundingBox(instance:EntityInstance)
     {
         var bbox = instance.shape.BondingBox();
 
@@ -56,7 +56,7 @@ export class IntersectionTester{
         //console.log("BoundBox Transf", instance, globalsborders, newBBox);
         return newBBox;
     }
-    divideInstances(instances:Instance[], init: number = 0, end: number = 0, progress:ProgressAction = DEFAULTPROGRESS):AccNode|undefined{
+    divideInstances(instances:EntityInstance[], init: number = 0, end: number = 0, progress:ProgressAction = DEFAULTPROGRESS):AccNode|undefined{
         
         if(instances.length==0){
             return;
@@ -115,7 +115,7 @@ export class IntersectionTester{
             ), 
             child1:n1, child2:n2};
 
-        function sortBy(ia:Instance,ib:Instance){
+        function sortBy(ia:EntityInstance,ib:EntityInstance){
             var v1 = (ia.shape.BondingBox().Centroid()[best]);
             var v2 = (ib.shape.BondingBox().Centroid()[best]);
             return v1-v2

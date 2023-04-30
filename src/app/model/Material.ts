@@ -25,9 +25,7 @@ export class PhongMaterial extends Material{
             //var r = n.map(v=>-(v));
             return <vec3>r;
         }
-        //return c;
-        //return mul(add2([1,-1,1],n), [1/2,-1/2,1/2]);
-        //vec3.normalize(v,)
+        
         scene.lights.forEach(instance=>{
             var ls = instance.light!;
             if(verbose2) console.log("Checking light", instance);
@@ -39,65 +37,22 @@ export class PhongMaterial extends Material{
             var ml = minus(l);
             var contrib = scale(mul(this.matColorDiff, li), Math.max(0, dot(l,n)));
             
+            hitCode ??=0;
             
             if(verbose2) console.log("Radiance Calculated", li, l, hitCode);
 
-            if(FORCCE_HIT_OCL_MAT_CODE)
-            {
-                if(hitCode && (hitCode>0) && (length(c)<1))
-                {
-                    //if(hitCode<0)
-                    //    c = [0,1,0];
-                    //c = add2(c, [(hitCode/4)%2,(hitCode/2)%2,hitCode%2]);
-                    //else
-                        c = calculateHitCode(hitCode)
-                }
+            if(this.afterRadianceCalcCheck(hitCode,c,l,n,li)){
+                c = this.checkResult;
                 return;
             }
-            if(FORCCE_L_HIT)
-            {
-                var r2 = l.map(v=>Math.abs(v));
-                c = add2(c, <vec3>r2);
-                return;
-            }
-            if(FORCCE_L_HIT_N)
-            {
-                var r2 = scale([1,0,0],dot(l,n)).map(v=>Math.abs(v));
-                c = add2(c, <vec3>r2);
-                return;
-            }
-            if(FORCCE_LI_HIT)
-            {
-                var r2 = li.map(v=>Math.abs(v));
-                c = add2(c, <vec3>r2);
-                return;
-            }
-            if(FORCCE_LI_MAT)
-            {
-                var r2 = mul(this.matColorDiff, li).map(v=>Math.abs(v));
-                c = add2(c, <vec3>r2);
-                return;
-            }
-            //console.log("Contrib",contrib, li, l,n,dot(l,n))
-            if(li[0]>0.5)
-            {
-                //console.log(li,l,ml, contrib, this.matColorDiff, hit, dot(l,n))
-
-            }
+            
             add(contrib);
-            if(distance(hit.p, [2,1.5,2.9])<0.2)
-            {
-                //console.log("Hit Eval", n, hit.p, l,ml, distance(hit.p, [2,1.5,2.9]), dot(l,n));
-            }
+
             var r = reflect(l, n);
-            //console.log(li,l, contrib, hit, r, n, dot(r,v))
-            //var c2 = scale([1,1,1],Math.pow(Math.max(0,dot(r,v)), 10)*255);
-            //console.log("Dot",dot(r,v))
+            
             var c2 = scale(this.matColorSpec,Math.pow(Math.max(0,Math.min(dot(r,v), 1)), this.shiness));
             if(verbose3)console.log("shine", c2, c, r, v, dot(r,v), "L",l,ml, ls, n,hit);
             add(c2);
-            //console.log("shine", c2, c);
-            //TODO: FALTA SPEC
         }
         )
         return c;
@@ -108,6 +63,43 @@ export class PhongMaterial extends Material{
     }
     P: vec3;
 
+    checkResult:vec3;
+    afterRadianceCalcCheck(hitCode:number, c1:vec3, l:vec3, n:vec3, li:vec3){
+        if(FORCCE_HIT_OCL_MAT_CODE)
+        {
+            if(hitCode && (hitCode>0) && (length(c1)<1))
+            {
+                this.checkResult = calculateHitCode(hitCode);
+                return true;
+            }
+            return true;
+        }
+        if(FORCCE_L_HIT)
+        {
+            var r2 = l.map(v=>Math.abs(v));
+            this.checkResult = add2(c1, <vec3>r2);
+            return true;
+        }
+        if(FORCCE_L_HIT_N)
+        {
+            var r2 = scale([1,0,0],dot(l,n)).map(v=>Math.abs(v));
+            this.checkResult = add2(c1, <vec3>r2);
+            return true;
+        }
+        if(FORCCE_LI_HIT)
+        {
+            var r2 = li.map(v=>Math.abs(v));
+            this.checkResult = add2(c1, <vec3>r2);
+            return true;
+        }
+        if(FORCCE_LI_MAT)
+        {
+            var r2 = mul(this.matColorDiff, li).map(v=>Math.abs(v));
+            this.checkResult = add2(c1, <vec3>r2);
+            return true;
+        }
+        return false;
+    }
 }
 export class PhongMetal extends Material{
     constructor(private phongMaterial:PhongMaterial, private r0:number){ super()}
@@ -118,28 +110,9 @@ export class PhongMetal extends Material{
         let v = normalize(sub2(origin, p));
         let R = this.r0 + (1-this.r0)*Math.pow((1-dot(v,n)),5);
         
-        if(false) return this.phongMaterial.Eval(scene, hit, origin);
-        
-        if(false) R=1.0;
-        if(false) return abs(minus(v));
-        if(false) return abs(scale([1,0,0], Math.pow((dot(v,n)),5)));
-        if(false) {
-            //return this.phongMaterial.Eval(scene, hit, origin) 
-            //return [1,0,0]
-            //var v2 = n.map(c=>Math.abs(c));
-            var v2 = v.map(c=>Math.abs(c));
-            return <vec3>v2;
-        }
-        
-        /*
-        if(R<=EPSILON)
-        {
-            return [0,0,0];
-        }
-        */
         let c = scale(this.phongMaterial.Eval(scene, hit, origin), (1-R));
         let r = normalize(reflect((v), n));
-        if(false) return abs(reflect((v), n));
+        
         let ray = createRay(p, r, {addEps:true})
         var refl = scale(scene.TraceRay(ray),R);
         if(FORCE_HIDE_REFLECTION) return c;

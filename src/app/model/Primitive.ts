@@ -37,4 +37,4 @@ export type Hit = {
     p:vec3,
     uv:vec2,
 };
-export type Instance = {name:string, material?:Material, light?:Light,shape:Shape, transform:Transform};
+export type EntityInstance = {name:string, material?:Material, light?:Light,shape:Shape, transform:Transform};

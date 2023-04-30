@@ -6,7 +6,7 @@ import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT,
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, PontualLight } from "./Light";
 import { Transform } from "./Transform";
-import { DEFAULTPROGRESS, Hit, Instance, ProgressAction, Ray } from "./Primitive";
+import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray } from "./Primitive";
 import { IntersectionTester } from "./Tester";
 import { Camera, Film } from "./Film";
 
@@ -202,7 +202,7 @@ export class Scene{
     ]
     
     tester = new IntersectionTester()
-    AddEntity(arg0: Instance) {
+    AddEntity(arg0: EntityInstance) {
         //this.obj.push(arg0);
         //console.log("AreaAddEntity", arg0)
         this.instances.push(arg0)
@@ -211,8 +211,8 @@ export class Scene{
         return;
     }
     //root:AccNode = {}
-    instances:Instance[] =[]
-    get lights():Instance[]{
+    instances:EntityInstance[] =[]
+    get lights():EntityInstance[]{
         return this.instances.filter(i=>Boolean(i.light)==true)
     }
     
