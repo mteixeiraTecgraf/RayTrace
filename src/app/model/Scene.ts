@@ -9,6 +9,7 @@ import { Transform } from "./Transform";
 import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray } from "./Primitive";
 import { IntersectionTester } from "./Tester";
 import { Camera, Film } from "./Film";
+import { interval } from "rxjs";
 
 
 export class Scene{
@@ -31,14 +32,27 @@ export class Scene{
     prepareScene(){
         this.tester.generateStructure();
     }
-    Render(Context:CanvasRenderingContext2D, progress:ProgressAction = DEFAULTPROGRESS){
+    Render(Context:CanvasRenderingContext2D, {progress}:{progress:ProgressAction} = {progress:DEFAULTPROGRESS}){
         const film = this.Film
         const count = film.GetSampleCount();
         //return;
+        
+
+        /*
+        let v = 0;
+        var s =interval(10).subscribe(i=>{
+            let c = v;
+            console.log("interval", c);
+            progress(c,this.W);
+        })
+        //return;
+        */
         for(let i = 0; i<this.W;i++ )
         {
+            //v = i;
             progress(i,this.W);
-            
+
+            //continue;
             for(let j = 0; j<this.H;j++ )
             {
                 var c:vec3 = [0,0,0]
@@ -63,6 +77,8 @@ export class Scene{
             }
         }
         progress(this.W,this.W);
+        //v = this.W;
+        //s.unsubscribe();
         this.Film.RenderImage(Context);
         
     }

@@ -1,9 +1,17 @@
-
-
-<canvas #canvas width="800" height="600"></canvas>
-<button (click)="animate()">Rotate</button>  
-<div class="progress">
-  <div class="progress-bar" role="progressbar" [style.width.%]="progress" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
+<div>
+  <canvas #canvas width="800" height="600"></canvas>
+    <div *ngFor="let i of rerenderProps" >
+  
+  
+    <div *ngIf="loading" class="spinner-border" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="progress">
+      <div class="progress-bar" role="progressbar" attr.style="width:{{progress}}%" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
+    </div>
+    <button *ngFor="let num of [1,2,3,4,5]" (click)="reload(num)">Cena {{num}}</button>  
+    <button (click)="animate()">Rotate</button>  
+  </div>
 </div>
 <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
 <!-- * * * * * * * * * * * The content above * * * * * * * * * * * -->
