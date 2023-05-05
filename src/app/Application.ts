@@ -6,7 +6,8 @@ import { Material, PhongMaterial, PhongMetal, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
 import { add2 } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, Subject, firstValueFrom, from } from 'rxjs';
+import { bufferTime, map, filter, tap} from 'rxjs/operators';
+import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
 import { DEFAULTPROGRESS, ProgressAction } from './model/Primitive';
 
 @Injectable({
@@ -28,7 +29,7 @@ export class Application{
             if((i*100/j)%10 == 0)
             {
                 a.next({i,j});
-            }
+  }
             if(i===j)
             {     
                 console.log("complete")
@@ -92,7 +93,7 @@ export class Application{
         sceneFunction = sceneFunction.bind(this)
         from(sceneFunction(scene)).subscribe(()=>{
             //await this.bunnysceneSimple(scene);
-            scene.prepareScene();
+        scene.prepareScene();
                 
             scene.Render(ctx, o);
             scene.ReportComputations();
@@ -115,6 +116,24 @@ export class Application{
      console.log("myImageData", myImageData)
      //square.move(1,21)
      */
+  }
+  RotateX(ctx :CanvasRenderingContext2D, angle:number){
+    this.scene.camera.RotateOriginX(angle)
+    this.scene.camera.RotateX(angle)
+    //this.scene.camera.RotateX(15*Math.random()-7)
+    this.scene.Render(ctx)
+  }
+  RotateY(ctx :CanvasRenderingContext2D, angle:number){
+    this.scene.camera.RotateOriginY(angle)
+    this.scene.camera.RotateY(angle)
+    //this.scene.camera.RotateX(15*Math.random()-7)
+    this.scene.Render(ctx)
+  }
+  RotateZ(ctx :CanvasRenderingContext2D, angle:number){
+    this.scene.camera.RotateOriginZ(angle)
+    this.scene.camera.RotateZ(angle)
+    //this.scene.camera.RotateX(15*Math.random()-7)
+    this.scene.Render(ctx)
   }
   
   async testScene1(scene:Scene){

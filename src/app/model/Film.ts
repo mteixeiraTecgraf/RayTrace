@@ -97,6 +97,16 @@ export class Camera{
         this.w = f([0,0,0],this.w, [0,0,0], Math.PI*rot/180)
 
     }
+    RotateOriginX(rot:number)
+    {
+        this._o = vec3.rotateX([0,0,0],this._o, [0,0,0], Math.PI*rot/180)
+        this.refresh();
+    }
+    RotateOriginY(rot:number)
+    {
+        this._o = vec3.rotateY([0,0,0],this._o, [0,0,0], Math.PI*rot/180)
+        this.refresh();
+    }
     RotateOriginZ(rot:number)
     {
         this._o = vec3.rotateZ([0,0,0],this._o, [0,0,0], Math.PI*rot/180)

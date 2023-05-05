@@ -10,7 +10,9 @@
       <div class="progress-bar" role="progressbar" attr.style="width:{{progress}}%" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
     </div>
     <button *ngFor="let num of [1,2,3,4,5]" (click)="reload(num)">Cena {{num}}</button>  
-    <button (click)="animate()">Rotate</button>  
+    <button (click)="rotateX(-40)">RotateX</button>  
+    <button (click)="rotateY(-40)">RotateY</button>  
+    <button (click)="rotateZ(-40)">RotateZ</button>  
   </div>
 </div>
 <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->

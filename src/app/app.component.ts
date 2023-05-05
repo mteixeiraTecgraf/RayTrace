@@ -46,30 +46,30 @@ export class AppComponent implements OnInit{
           this.application.initScene(this.ctx, sceneNum).subscribe(
             {
 
-              //() => console.log('success'),
-              //(error) => console.log('error', error),
-              next:(        a: { i: number; j: number; })=>{
-                
-                this.ngZone.run(()=>{
-                  //this.progressSubj.next(50);
-                  //console.log(a);
-                  //setTimeout(()=>{
-                    
-                    this.loading = false;
-                    this.progress++;
+      //() => console.log('success'),
+      //(error) => console.log('error', error),
+      next:(        a: { i: number; j: number; })=>{
+        
+        this.ngZone.run(()=>{
+          //this.progressSubj.next(50);
+          //console.log(a);
+          //setTimeout(()=>{
+            
+            this.loading = false;
+            this.progress++;
                     this.refresh(a)
                     this.ref.detectChanges();
-                    //}, 10);
-                    //this.loading = false;
-                    //this.progressSubj.next(i.i)
-                  })
-                  
-                },
+            //}, 10);
+            //this.loading = false;
+            //this.progressSubj.next(i.i)
+          })
+          
+        },
                 error:(error)=>console.error("Error", error),
-                complete:()=>{
-                  this.loading=false;
+        complete:()=>{
+          this.loading=false;
                   this.ref.detectChanges();
-                }
+        }
               }
                 );
       }, 1000
@@ -100,6 +100,15 @@ export class AppComponent implements OnInit{
   }
   animate(){
     this.application.animate(this.ctx)
+  }
+  rotateX(value:number){
+    this.application.RotateX(this.ctx, value)
+  }
+  rotateY(value:number){
+    this.application.RotateY(this.ctx, value)
+  }
+  rotateZ(value:number){
+    this.application.RotateZ(this.ctx, value)
   }
 
   drawCircle(){
