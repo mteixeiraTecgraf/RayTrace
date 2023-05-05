@@ -153,6 +153,14 @@ export function scaleMat(mat:GLMat.mat4, scale:vec3=[0,0,0])
     return mat;
 }
 
+export const COLOR = {
+    RED : <vec3>[1,0,0],
+    GREEN : <vec3>[0,1,0],
+    BLUE : <vec3>[0,0,1],
+    BLACK : <vec3>[0,0,0],
+    WHITE : <vec3>[1,1,1],
+}
+
 const degrees_to_radians = (deg:number) => (deg * Math.PI) / 180.0;
 export function rotate(mat:GLMat.mat4, angle:number, axis:"x"|"y"|"z")
 {

@@ -140,7 +140,7 @@ export class IntersectionTester{
     {        
         if(!node) return;
         
-        if(verbose) console.log("MARK2::Computing Box intersections", ray, node);
+        if(verbose) console.log("Computing Box intersections", ray, node);
         var hit = node.box?.ComputeIntersection(ray);
         
             
@@ -166,7 +166,7 @@ export class IntersectionTester{
             //console.log("ComputeIntersection", thit);
             var hit = node.instance!.transform.toGlobalHit(tHit);
             if(hit) {
-                if(verbose) console.log("MARK2::Computing Hit", ray, node, tRay, tHit, hit);
+                if(verbose) console.log("Computing Hit", ray, node, tRay, tHit, hit);
                 hit.material = node.instance.material;
                 hit.light = node.instance.light;
                 hit.instanceRef = v;

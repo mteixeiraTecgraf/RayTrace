@@ -234,7 +234,7 @@ export class Scene{
     
     //obj:{material:Material,shape:Shape}[] =[]
     ComputeIntersection(ray: Ray):Hit|undefined {
-        if(verbose)console.log("MARK2::Compute Intersections in Scene and ray", ray);
+        if(verbose)console.log("Compute Intersections in Scene and ray", ray);
         const v2 = sampleBetween2(this.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3]);
         var t = Infinity;
         var p:vec3 = [0,0,0];
@@ -250,9 +250,11 @@ export class Scene{
             return ;
         }
         */
-       var bestHit = this.tester.Test(ray);
+       console.group("Test")
+        var bestHit = this.tester.Test(ray);
+        console.groupEnd()
         //this.tester.Test()
-        if(verbose3)console.log("MARK2::Hit Object Final", bestHit);
+        if(verbose3)console.log("Hit Object Final", bestHit);
         return bestHit;
     }
     temp(ray: Ray): vec3

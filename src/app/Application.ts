@@ -2,7 +2,7 @@ import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/c
 import { vec3 } from 'gl-matrix';
 import { Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
-import { Material, PhongMaterial, PhongMetal, TextureMaterial } from './model';
+import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
 import { add2 } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
@@ -458,6 +458,7 @@ export class Application{
   addBox(scene:Scene, transform: Transform = new Transform())
   {
     var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
+    //var material6 = new PhongDieletrics(1.33); //TODO Test hit box ray inside
     
     scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
       //[0,2,-1+dz], 1

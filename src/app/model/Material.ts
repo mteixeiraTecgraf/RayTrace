@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import { Hit, createRay } from "./Primitive";
 import { Scene } from "./Scene";
-import { abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, sub2, verbose2, verbose3 } from "./utils";
+import { COLOR, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
 import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
 
@@ -9,13 +9,16 @@ import { BehaviorSubject, Subject, filter } from "rxjs";
 
 export abstract class Material{
     abstract Eval(scene: Scene, hit: Hit, origin: vec3):vec3;
+    IsTransparent(){
+        return false;
+    }
 }
 export class PhongMaterial extends Material{
     constructor(private matColorDiff:vec3, private matColorSpec:vec3 = [0,0,0], private shiness:number = SHINESS){ super()}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
         var v2 = sampleBetween2(scene.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3])
         if( verbose2) 
-            console.log("MARK2::Evaluating material", scene.sample,v2);
+            console.log("Evaluating material", scene.sample,v2);
         let c:vec3 = mul(scene.ambientLight, this.matColorDiff);
         let v:vec3 = normalize(sub2(origin, hit!.p))
         var n = normalize(hit!.n??[0,1,0]);
@@ -131,29 +134,92 @@ export class PhongMetal extends Material{
 }
 //TODO Revisar Refracao
 export class PhongDieletrics extends Material{
-    constructor(private n:number){super()}
+    constructor(private n:number){super(); this.n = 1}
     override Eval(scene: Scene, hit: Hit, origin: vec3): vec3 {
         let p = hit.p;
         let n = normalize(hit.n);
         let v = normalize(sub2(origin, p));
         let R0 = Math.pow((this.n -1)/(this.n+1),2)
         let R = R0 + (1-R0)*Math.pow((1-dot(v,n)),5);
-
         let r = normalize(reflect(minus(v),n));
         let ray = createRay(p, r);
+        
+        //console.log("Calculate Reflext Part ");
+        let oldv = verbose3
+        let c = COLOR.BLACK//scale(scene.TraceRay(ray),R);
+        setVerbose(oldv);
 
-        let c = scale(scene.TraceRay(ray),R);
 
         let I = vec3.fromValues(1,1,1);
         let ratio = this.n/1;
         if(hit.backface){
+            console.log("Hit Back face");
             //I = 
             //TODO ver o que fazer com o a^(o-p)
-            ratio = 1/this.n;
         }
-        //r = scale(normalize(minus(v),n),ratio)
-        throw Error("Metodo de Refracao incompleto");
+        else{
+            //console.log("Hit Front face");
+            ratio = 1/this.n;
+            //do nothing
+        }
+        let ref = this.refract(minus(v),n!, ratio);
+        if(verbose3)console.log("Refract Factor ", ref);
+        //return COLOR.RED;
+        if(ref)
+        {
+
+            r = normalize(ref!)
+            //return r;
+            ray = createRay(p, r)
+            let rf = 1-R;
+            console.group("Reflect")
+            if(verbose3)console.log("Trace Ray Scene ", ray);
+            let cR = scene.TraceRay(ray)
+            if(verbose3)console.log("Refract cR ", cR);
+            console.groupEnd()
+            return cR;
+            c = add2(c,scale(cR, rf))
+        }
+        return mul(I, c)
         
+    }
+    override IsTransparent(){
+        return true
+    }
+
+    refract(d:vec3, n:vec3, ratio:number){
+        let minDN = dot(minus(d),n);
+        let b = scale(add2(d, scale(n,minDN)),ratio)
+        let r1 = (Math.pow(ratio,2) * (1-Math.pow(minDN,2)))
+        let radic = 1-r1
+        if(verbose3)console.log("Refract ", d,n, ratio, minDN,(ratio^2),  (1-Math.pow(minDN,2)), b, radic);
+        if(verbose3)console.log("refract:minD ", minDN);
+        if(verbose3)console.log("refract:minD2 ", minDN*minDN);
+        if(verbose3)console.log("refract:3 ", 1-Math.pow(minDN,2));
+        if(verbose3)console.log("refract:4 ", r1);
+        if(radic<0)
+            return //vec3.fromValues(0,0,0) 
+        let nctheta = scale(minus(n),Math.sqrt(radic))
+        let t = sub2(b,nctheta)
+        return t;
+
+        /*
+        t =
+η(dˆ + nˆ cos θ)
+ηt
+− nˆ cos φ =
+η(dˆ + nˆ (−dˆ · nˆ))
+ηt
+− nˆ
+s
+1 −
+η
+2(1 − (−dˆ · nˆ)
+2)
+η
+2
+t
+        */
     }
 
 }

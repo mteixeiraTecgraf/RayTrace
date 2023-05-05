@@ -24,7 +24,7 @@ export const TEST_BRUTE_FORCE = false;
 
 export const DEBUG_TRACE_POINT = false;
 export const DEBUG_TRACE_POINT_COORDS:vec3 = [1.5,1.2,2.97];
-export const DEBUG_SAMPLE:vec2 = [-10.0,-10.0];//0.5875, 0.31875];
+export const DEBUG_SAMPLE:vec2 = [-0.40,-0.45];//0.5875, 0.31875];
 export const DEBUG_SAMPLE2:vec2 = [300,300];//0.5875, 0.31875];
 export const DEBUG_SAMPLE2_RADIUS:vec2 = [10,10];//0.5875, 0.31875];
 
