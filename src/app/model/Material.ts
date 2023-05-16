@@ -1,16 +1,26 @@
 import { vec3 } from "gl-matrix";
 import { Hit, createRay } from "./Primitive";
 import { Scene } from "./Scene";
-import { COLOR, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
+import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
 import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
 
 
 
 export abstract class Material{
+    GetPDF(sample: vec3):number {
+        throw new Error("Method not implemented.");
+    }
+    getSample():vec3 {
+        throw new Error("Method not implemented.");
+    }
     abstract Eval(scene: Scene, hit: Hit, origin: vec3):vec3;
     IsTransparent(){
         return false;
+    }
+    BDRF():vec3
+    {
+        return VECS.ONE;
     }
 }
 export class PhongMaterial extends Material{

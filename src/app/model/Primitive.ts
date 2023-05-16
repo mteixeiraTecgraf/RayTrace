@@ -38,3 +38,4 @@ export type Hit = {
     uv:vec2,
 };
 export type EntityInstance = {name:string, material?:Material, light?:Light,shape:Shape, transform:Transform};
+export type LightInstance = {name:string, material?:Material, light:Light,shape:Shape, transform:Transform};

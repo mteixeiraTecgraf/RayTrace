@@ -153,12 +153,17 @@ export function scaleMat(mat:GLMat.mat4, scale:vec3=[0,0,0])
     return mat;
 }
 
+export const VECS = {
+    ZERO : <vec3>[0,0,0],
+    ONE : <vec3>[1,1,1],
+}
+
 export const COLOR = {
     RED : <vec3>[1,0,0],
     GREEN : <vec3>[0,1,0],
     BLUE : <vec3>[0,0,1],
-    BLACK : <vec3>[0,0,0],
-    WHITE : <vec3>[1,1,1],
+    BLACK : VECS.ZERO,
+    WHITE : VECS.ONE,
 }
 
 const degrees_to_radians = (deg:number) => (deg * Math.PI) / 180.0;

@@ -6,7 +6,7 @@ import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT,
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, PontualLight } from "./Light";
 import { Transform } from "./Transform";
-import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray } from "./Primitive";
+import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray, createRay, LightInstance } from "./Primitive";
 import { IntersectionTester } from "./Tester";
 import { Camera, Film } from "./Film";
 import { interval } from "rxjs";
@@ -69,7 +69,8 @@ export class Scene{
                     if(verbose2) console.log("Ray",i,j, ray)
                     
                     //3
-                    c = add2(c,this.TraceRay(ray));
+                    //c = add2(c,this.TraceRay(ray));
+                    c = add2(c,this.TracePath(ray, 2));
                     if(verbose2) console.log("Pixel", i,j,c)
                 }
                 film.SetPixelValue(i,j,utils.scale(c, 1/count));
@@ -145,7 +146,56 @@ export class Scene{
         return [0,0,0];
             //return this.temp(ray);
     }
-    checkResult:vec3 = [0,0,0]
+
+    TracePath(ray:Ray, dMax:number){
+        let L = utils.VECS.ZERO;
+        let beta = utils.VECS.ONE;
+
+        for(let i=0;i<dMax;++i){
+            let hit = this.ComputeIntersection(ray);
+            if(!hit)
+            {
+                break;
+            }
+            let light = hit.light;
+            if(light)
+            {
+                if(i==0)
+                {
+                    return light.Potencia;
+                }
+                else{
+                    break;
+                }
+            }
+            else{
+                //return L;
+                let mat = hit.material!;
+                let p = hit.p;
+                let n = hit.n
+                let Le = this.getLightRadiance(p, n)
+                add2(L, mul(mul(Le,mat.BDRF()), beta))
+
+                var sample = mat.getSample()
+                var pdf = mat.GetPDF(sample)
+                var wi = this.NormalToGlobal(sample)
+
+                beta = mul(beta,utils.scale(mat.BDRF(),Math.max(0,dot(n,wi)/pdf)))
+
+                ray = createRay(p,wi);
+
+            }
+        }
+        return L;
+    }
+    NormalToGlobal(sample: vec3) :vec3{
+        throw new Error("Method not implemented.");
+    }
+    getLightRadiance(p: vec3, n: vec3):vec3 {
+        throw new Error("Method not implemented.");
+        this.lights.map(l=>l.light!)
+    }
+    checkResult:vec3 = utils.VECS.ZERO
     afterMatEvalCheck(hit:Hit, ray:Ray){
         
         if(debugSample(this))
