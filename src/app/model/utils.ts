@@ -231,9 +231,11 @@ export function debugSample(scene:Scene):boolean{
 export function debugSample2(scene:Scene):boolean{
     return DEBUG_SAMPLE2 && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
 }
+const factor = 2;
+const factor2 = 4;
 export function calculateHitCode(code:number):vec3{
     //code = 5;
-    return [(((code)/9)%3)/2,(((code)/3)%3)/2,((code)%3)/2]
+    return [(((code)/factor2)%factor)/2,(((code)/factor)%factor)/2,((code)%factor)/2]
 }
 
 

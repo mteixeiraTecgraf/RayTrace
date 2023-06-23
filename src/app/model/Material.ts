@@ -17,7 +17,8 @@ export abstract class Material{
         var sample = this.sampler.getUnitaryHemisphere()
         //console.log(sample)
         //return {s:<vec3>[0,0,1],pdf:sample[2]/Math.PI}
-        return {s:sample,pdf:sample[2]/Math.PI}
+        //return {s:sample,pdf:sample[2]/Math.PI}
+        return {s:sample,pdf:1/(2*Math.PI)}
     }
     GetPDF({pdf}:{s: vec3,pdf:number}):number {
         return pdf;
@@ -85,9 +86,10 @@ export class PhongMaterial extends Material{
     P: vec3;
 
     
+    readonly factor = 1/Math.PI
     override BDRF(hit: Hit, origin: vec3):vec3
     {
-        return scale(this.matColorDiff, 1/Math.PI);
+        return scale(this.matColorDiff, this.factor);
     }
     
     checkResult:vec3;
@@ -158,7 +160,7 @@ export class PhongMetal extends Material{
     
     
     override getSample(wi:vec3) {
-        if(IGNORE_MIRROR_BDRF) return this.phongMaterial.getSample(wi);
+        if(IGNORE_MIRROR_BDRF) return super.getSample(wi);
         return{s:reflect(wi,[0,0,1]),pdf:1}
     }
     override BDRF(hit: Hit, origin: vec3):vec3

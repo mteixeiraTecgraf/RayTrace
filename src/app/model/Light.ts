@@ -9,6 +9,7 @@ export abstract class Light{
     public Intensidade: vec3 = [1,1,1];
     public Potencia: vec3 = [1,1,1];
     abstract get SAMPLE_COUNT():number;
+    abstract getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number};
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number } {
         const res = {li:vec3.create(),l:vec3.create()};
         for(var i = 0; i< this.SAMPLE_COUNT; ++i)
@@ -44,6 +45,10 @@ export class PontualLight extends Light{
     type:"PontualLight";
     get SAMPLE_COUNT(){
         return 1;
+    }
+    
+    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
+        return { s: this.Position, ns: sub2(p, this.Position), pdf: 1 };
     }
     SampleRadiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number} {
 
@@ -104,6 +109,18 @@ export class AreaLight extends Light{
         this._SAMPLE_COUNT = value;
         this.sqr_SAMPLE_COUNT = Math.sqrt(this.SAMPLE_COUNT);
         this.AreaPart = this.Area/this.SAMPLE_COUNT;
+    }
+    
+    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
+    
+
+        var Area = this.Area;
+        var e1 = utils.scale(this.ArestaI, Math.random())
+        var e2 = utils.scale(this.Arestaj, Math.random())
+
+        return { s: add3(this.Position, e1, e2), ns: this.Normal, pdf: 1 / Area };
+
+
     }
     SampleRadiance(scene: Scene, p: vec3, n: vec3, i:number): { li: vec3; l: vec3; } {
         var ni = Math.ceil(i/this.sqr_SAMPLE_COUNT);

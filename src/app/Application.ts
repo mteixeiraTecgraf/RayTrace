@@ -1,10 +1,10 @@
 import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/core';
 import { vec3 } from 'gl-matrix';
-import { AMBIENT_LIGHT, Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
+import { AMBIENT_LIGHT, AreaLight, Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
-import { add2 } from './model/utils';
+import { COLOR, VECS, add2 } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { bufferTime, map, filter, tap} from 'rxjs/operators';
 import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
@@ -152,8 +152,17 @@ export class Application{
     scene.camera.addToOrigin([0,-2.0,1.5,])
   }
   async scene2(scene:Scene){
-    this.addBox(scene, Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8));
+    this.addBox(scene, 
+      //Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+      Transform.fromPipe(scale([0.6,0.6,0.6]), rotate(-50,"z"),translate([0.3,1.4,0]))
+    );
+    this.addBox(scene, 
+      //Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
+      Transform.fromPipe(scale([1,1,1.8]), rotate(50,"z"),translate([-1.1,0.5,0]))
+    );
     this.boxSceneBase(scene);
+    
+    return;
     await this.addVertices(scene);
     
     this.addSphere(scene, Transform.fromPipe(
@@ -219,8 +228,9 @@ export class Application{
   }
   async boxSceneBase(scene:Scene){
     
-    scene.camera.addToOrigin([0,-2.0,1.5,])
-    this.SimpleLightScene(scene);
+    scene.camera.addToOrigin([0,-1.5,1.5,])
+    //this.SimpleLightScene(scene);
+    this.SimpleArea(scene)
     this.addCeil(scene)
     this.addBack(scene);
     this.addLateralReflective(scene);
@@ -401,10 +411,16 @@ export class Application{
     this.addCeil(scene);
 
   }
+  SimpleArea(scene:Scene){
+    var factor = 32
+    var lightIntens = <vec3>[factor,factor,factor];
+    scene.AddAreaLight(new AreaLight([-1.2,0.8,2.90],[0.5,0,0],[0,-0.5,0],lightIntens))
+    scene.AddAreaLight(new AreaLight([1.0,0.8,2.90],[0.5,0,0],[0,-0.5,0],lightIntens))
+  }
   SimpleLightScene(scene:Scene){
-    
-    scene.AddPonctualLight(new PontualLight([0.25,0.2,2.97],[4,4,4]))    
-    scene.AddPonctualLight(new PontualLight([-1.25,-1.2,2.97],[4,4,4]))    
+    var lightIntens = <vec3>[5,5,5];
+    scene.AddPonctualLight(new PontualLight([0.25,0.2,2.97],lightIntens))    
+    scene.AddPonctualLight(new PontualLight([-1.25,-1.2,2.97],lightIntens))     
   }
   prepareSimpleLightBackBoxScene(scene:Scene){
     
@@ -412,24 +428,25 @@ export class Application{
     this.addBack(scene);
     
   }
+  readonly COLOR = COLOR.WHITE;
   addBack(scene:Scene){
     
     //rightwall mat
-    var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20);
     //back
     scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
     
   }
   addCeil(scene:Scene){
     //ceil mat
-    var material5 = new PhongMaterial([0.1,0.1,0.1], [0.6,0.6,0.6],10);
+    var material5 = new PhongMaterial(this.COLOR, [0.6,0.6,0.6],10);
     //teto
-    scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+    scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3.0], 4,3,0.1)})
 
   }
   addFloor(scene:Scene, transform:Transform=Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)){
     //rightwall mat
-    var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20);
     //piso
     scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:
       transform
@@ -457,7 +474,7 @@ export class Application{
   }
   addBox(scene:Scene, transform: Transform = new Transform())
   {
-    var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
+    var material6 = new PhongMaterial([1.0,1.0,1.0], [0.9,0.9,0.9],1);
     //var material6 = new PhongDieletrics(1.33); //TODO Test hit box ray inside
     
     scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
@@ -469,7 +486,7 @@ export class Application{
   addLeft(scene:Scene){
     
     //leftwall mat
-    var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
+    var leftGreenMat = new PhongMetal(new PhongMaterial([0.0,1,0.4], [0,0,0],1), 0.600);
     //left green
     scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
         

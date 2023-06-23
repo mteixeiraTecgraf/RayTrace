@@ -2,7 +2,7 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, calculateHitCode, createMat4, cross, debugSample, debugSample2, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
 import * as utils from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, LIGHT_FACTOR, LIMITS, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, LIGHT_FACTOR, LIMITS, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, PontualLight } from "./Light";
 import { Transform, scale } from "./Transform";
@@ -190,17 +190,20 @@ export class Scene {
         let L = utils.VECS.ZERO;
         let beta = utils.VECS.ONE;
 
+        var previousPDF = 0;
         for (let i = 0; i < dMax; ++i) {
             let L_Step = utils.VECS.ZERO;
             if(debugSample(this))console.log("@MARK2::",this.sample,i, dMax,FORCCE_RAY_HIT_MAT_CODE,i)
             let hitA = this.ComputeIntersection(ray);
             var hit = hitA ? hitA[0] : undefined;
+            if (this.beforeMatEvalCheck(hit, i)) return this.checkResult;
             if (!hit) {
                 break;
             }
+
             let light = hit.light;
             if (light) {
-                if (i == 0) {
+                if (DFIX<=0 && i == 0) {
                     return light.Potencia;
                 }
                 else {
@@ -216,7 +219,6 @@ export class Scene {
                 let p = hit.p;
                 let n = normalize(hit.n)
                 
-                if (this.beforeMatEvalCheck(hit, i)) return this.checkResult;
                 if(FORCCE_NORMAL)
                 {
                     var r = n.map(v=>Math.abs(v)) as vec3;
@@ -227,17 +229,37 @@ export class Scene {
                 for(var ns = 0 ; ns<N;ns++){
 
                     let Le = this.getLightRadiance(p, n)
-                    if(FORCCE_WI_MAT || FORCCE_L_HIT_N || FORCCE_LIGHT_FACTOR)
+                    if(this.hasResult)
                     {
-                        return Le;
+                        return this.checkResult;
                     }
-                    L_Step = add2(L_Step, mul(mul(Le, mat.BDRF(hit, ray.origin)), beta))
-                    if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, mat.BDRF(hit!, ray.origin)));
+                    var calcBDRF = mat.BDRF(hit, ray.origin);
+                    L_Step = add2(L_Step, mul(mul(Le, calcBDRF), beta))
+                    if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, calcBDRF));
+                    if(RENDER_PDF && (i == DFIX))
+                    {
+                        if(previousPDF>0.6)
+                        {
+                            return <vec3>[previousPDF,0,0];
+                        }
+                        if(previousPDF>0.3)
+                        {
+                            return <vec3>[0,previousPDF+0.3,0];
+                        }
+                        return <vec3>[0,0,previousPDF+0.6];
+                    }
+                    if(RENDER_BETA_LEN && (i == DFIX))
+                    {
+                        const f = 1;
+                        //return utils.scale(beta,1/f)
+                        const subv = 1//3.5//1.9;
+                        return utils.sub2(beta,utils.scale(utils.VECS.ONE,subv))
+                    }
                     if(i==DFIX)
                     {
                         return L_Step;
                     }
-                    L = add2(L,L_Step);
+                    L = DFIX<0 ? add2(L,L_Step):[0,0,0];
                     
                     if (i==DFIX && debugSample(this)) {
                         console.log("Trace", Le, L)
@@ -247,17 +269,21 @@ export class Scene {
                     //console.log("render",Le, mat.BDRF(), beta, L); 
                     //return L
 
-                    var sample = mat.getSample(this.GlobalToNormal(n,normalize(sub2(p,ray.origin))))
+                    var wig = normalize(this.GlobalToNormal(n,normalize(sub2(ray.origin,p))));
+                    var sample = mat.getSample(wig)
                     var pdf = mat.GetPDF(sample)
-                    var wi = this.NormalToGlobal(n, sample.s)
-                    if(debugSample(this))console.log("@MARK2::wi gen",n,sample.s, wi)
+                    previousPDF = pdf;
+                    var wi = normalize(this.NormalToGlobal(n, sample.s))
+                    //return sub2(sample.s.map(Math.abs) as vec3, [0,0,0]);
+                    //return utils.scale(utils.VECS.ONE,dot(sample.s,[0,0,1])>0.5?0:dot(sample.s,[0,0,1]))
+                    if(debugSample(this))console.log("@MARK2::wi gen",wig, n,sample, wi,beta)//    , this.GlobalToNormal([-1,0,0],[0,1,0]))
                     //var r = sample.s.map(v=>Math.abs(v)) as vec3;
                     //return r;
                 
                     
-                    beta = mul(beta, utils.scale(mat.BDRF(hit!, ray.origin), Math.max(0, dot(n, wi) / pdf)))
+                    beta = mul(beta, utils.scale(calcBDRF, Math.max(0, dot(n, wi) / pdf)))
 
-                    ray = createRay(p, normalize(wi));
+                    ray = createRay(p, wi);
 
                 }
             }
@@ -265,16 +291,18 @@ export class Scene {
         return L;
     }
     NormalToGlobal(n: vec3, sample: vec3): vec3 {
-        var t: vec3 = [1, 0, 0]
-        if (dot(t, n) > 0.9) {
-            t = [0, 1, 0]
-        }
-        var b = normalize(cross(n, t));
-        t = cross(b, n)
-        var M = createMat4(t, b, n, [0, 0, 0])
+        var M = this.GenerateTransform(n);
         return utils.transform(M, sample)
     }
     GlobalToNormal(n: vec3, sample: vec3): vec3 {
+        
+        var M = this.GenerateTransform(n);
+        var M2 = inverse(M);
+        if(debugSample(this)) console.log("@MARK2::GlobalNormal",n, M, M2, sample);
+        return utils.transform(M2, sample)
+    }
+    GenerateTransform(n: vec3)
+    {
         n=normalize(n);
         var t: vec3 = [1, 0, 0]
         if (Math.abs(dot(t, n)) > 0.9) {
@@ -283,9 +311,8 @@ export class Scene {
         var b = normalize(cross(n, t));
         t = cross(b, n)
         var M = createMat4(t, b, n, [0, 0, 0])
-        var M2 = inverse(M);
-        //console.log(t,b, n, M, M2, sample);
-        return utils.transform(M2, sample)
+        if(debugSample(this)) console.log("@MARK2::GenerateTransform",t,b, n, M)
+        return M;
     }
     getLightRadiance(p: vec3, n: vec3): vec3 {
         var nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
@@ -334,19 +361,8 @@ export class Scene {
                         this.checkResult = add2(c1, <vec3>r2);
                         return true;
                     }*/
-                    if(FORCCE_L_HIT_N)
-                    {
-                        return utils.scale([1,0,0],dot(ns, minus(wi)))//.map(v=>Math.abs(v));
-                    }
-                    if(FORCCE_LIGHT_FACTOR)
-                    {
-                        wi = [1,0,0]
-                        return utils.scale(wi,factorNumerator);
-                    }
-                    if(FORCCE_WI_MAT)
-                    {
-                        var r = wi.map(v=>Math.abs(v)) as vec3;
-                        return r;
+                    if(this.lightCheck(ns, wi, factorNumerator)){
+                        return this.checkResult;
                     }
                     var ray = createRay(add2(p, utils.scale(n,EPSILON)), wi);
                     var hitA = this.ComputeIntersection(ray, true, true, true);
@@ -391,21 +407,7 @@ export class Scene {
     //    throw new Error("Could not determine sample.");
     //}
     getSamplePoint(p: vec3, light: Light) {
-        //var n = Math.random()
-        if (light instanceof PontualLight) {
-            return { s: light.Position, ns: sub2(p, light.Position), pdf: 1 };
-        }
-        else {
-
-            var al = (light as AreaLight);
-            var Area = al.Area;
-            var e1 = utils.scale(al.ArestaI, Math.random())
-            var e2 = utils.scale(al.Arestaj, Math.random())
-
-            return { s: add3(al.Position, e1, e2), ns: al.Normal, pdf: 1 / Area };
-
-
-        }
+        return light.getSamplePoint(p);
     }
     getLightSample(): { light: Light, pdf: number } {
         var n = Math.random()
@@ -451,6 +453,7 @@ export class Scene {
         return { light: this.lights[idx].light!, pdf: pdfs[idx] };
     }
     checkResult: vec3 = utils.VECS.ZERO
+    hasResult = false;
     afterMatEvalCheck(hit: Hit, ray: Ray) {
 
         if (debugSample(this)) {
@@ -466,8 +469,8 @@ export class Scene {
         }
         return false;
     }
-    beforeMatEvalCheck(hit: Hit, code = 0) {
-        if (hit.uv) {
+    beforeMatEvalCheck(hit: Hit|undefined, code = 0) {
+        if (hit?.uv) {
             //return min([1,1,1],add2(scale([1,0,0],hit.uv[0]), scale([0,1,0],hit.uv[1])));
         }
 
@@ -475,20 +478,48 @@ export class Scene {
             this.checkResult = [1, 0, 0];
             return true;
         }
-        if (FORCCE_HIT_ON_VERTEX && hit.forceOnVertex) {
+        if (FORCCE_HIT_ON_VERTEX && hit?.forceOnVertex) {
 
             this.checkResult = [1, 0, 0];
             return true
         }
-        if (FORCCE_HIT_MAT_CODE && hit.instanceRef > 0) {
+        if (FORCCE_HIT_MAT_CODE && hit && hit.instanceRef > 0) {
             //return <vec3>[0,0,1]
             this.checkResult = calculateHitCode(hit.instanceRef)
             return true
         }
-        if ((FORCCE_RAY_HIT_MAT_CODE==code) && hit.instanceRef > 0) {
+        if ((FORCCE_RAY_HIT_MAT_CODE==code) ) {
+            if(hit && hit.instanceRef > 0)
+                //this.checkResult = <vec3>[0,0,1]
+                this.checkResult = calculateHitCode(hit.instanceRef)
+            else
+                this.checkResult = <vec3>[0,0,0]
             //return <vec3>[0,0,1]
-            this.checkResult = calculateHitCode(hit.instanceRef)
             return true
+        }
+        return false;
+    }
+    lightCheck(ns:vec3, wi:vec3, factorNumerator:number){
+        if(FORCCE_L_HIT_N)
+        {
+            this.hasResult = true;
+            this.checkResult = utils.scale([1,0,0],dot(ns, minus(wi)))//.map(v=>Math.abs(v));
+            return true;
+        }
+        if(FORCCE_LIGHT_FACTOR)
+        {
+            this.hasResult = true;
+            wi = [1,0,0]
+            
+            this.checkResult =  utils.scale(wi,factorNumerator);
+            return true;
+        }
+        if(FORCCE_WI_MAT)
+        {
+            this.hasResult = true;
+            var r = wi.map(v=>Math.abs(v)) as vec3;
+            this.checkResult =  r;
+            return true;
         }
         return false;
     }
