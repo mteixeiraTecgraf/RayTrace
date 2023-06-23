@@ -33,7 +33,8 @@ export abstract class Light{
                 //TODO ver melhor esta parte
             }
             let ray = createRay(hit2.p, l)
-            hit2 = scene.ComputeIntersection(ray);
+            var hitA = scene.ComputeIntersection(ray);
+            hit2 = hitA ? hitA[0] : undefined;
             //console.log("ReprocessRefraction out", hit2)
         }
         return {hit:hit2, I};
@@ -52,7 +53,8 @@ export class PontualLight extends Light{
         var ray = createRay(p, rayd, {addEps:true,normalizeDirection:true})
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
-        var hit2 = scene.ComputeIntersection(ray);
+        var hitA = scene.ComputeIntersection(ray);
+        var hit2 = hitA ? hitA[0] : undefined;
 
         var hitCode = -1;
         if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0   )
@@ -113,7 +115,8 @@ export class AreaLight extends Light{
         var ray = createRay(rayo, l, {addEps:true});
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
-        var hit = scene.ComputeIntersection(ray);
+        var hitA = scene.ComputeIntersection(ray);
+        var hit = hitA ? hitA[0] : undefined;
         //if(v2 || verbose2) console.log("Hit2", hit)
         //console.log("Radiance", ray);
         //console.log("Radiance", ray, hit);

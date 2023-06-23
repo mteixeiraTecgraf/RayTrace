@@ -1,6 +1,6 @@
 import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/core';
 import { vec3 } from 'gl-matrix';
-import { Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
+import { AMBIENT_LIGHT, Camera, Film, PontualLight, Scene, Transform, rotate, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
@@ -57,7 +57,7 @@ export class Application{
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    var ambLightPot = 0.0;
+    var ambLightPot = AMBIENT_LIGHT;
     //var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
     var camera = new Camera([0,0,0,],u,v,w,this.angle, 1, this.W/this.H );
@@ -403,8 +403,8 @@ export class Application{
   }
   SimpleLightScene(scene:Scene){
     
-    scene.AddPonctualLight(new PontualLight([0.25,0.2,2.97],))    
-    scene.AddPonctualLight(new PontualLight([-1.25,-1.2,2.97],))    
+    scene.AddPonctualLight(new PontualLight([0.25,0.2,2.97],[4,4,4]))    
+    scene.AddPonctualLight(new PontualLight([-1.25,-1.2,2.97],[4,4,4]))    
   }
   prepareSimpleLightBackBoxScene(scene:Scene){
     
@@ -567,7 +567,7 @@ export class Application{
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-    var ambLightPot = 0.2;
+    var ambLightPot = 0.6;
     var dz = 1;
     var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
     var camera = new Camera([0,0,dz,],u,v,w,this.angle, 5, this.W/this.H );

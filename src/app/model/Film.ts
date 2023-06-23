@@ -5,6 +5,7 @@ import { add2, createMat4, inverse, normalize, setPixel, sub2, toVec3, toVec4, v
 import { RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT } from "./config";
 
 import { Ray } from "./Primitive";
+import { Sampler } from "./Sampler";
 
 
 export class Film{
@@ -17,6 +18,22 @@ export class Film{
     }
     GetSample(i: number, j: number): vec2 {
         return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
+        //return [(((i)/this.W)*2)-1, ((j)/this.H)*2 - 1];
+    }
+    GetSampleOne(i: number, j: number): vec2 {
+        //return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
+        return [(((i)/this.W)*2)-1, ((j)/this.H)*2 - 1];
+    }
+    sampler = new Sampler()
+    GetPixelRadial(i: number, j: number): vec2 {
+        var [i2,j2] = this.sampler.getUnitaryHemisphere();
+        //console.log([i2,j2], r, theta)
+        return this.GetPixelOne((i2+1)/2,(j2+1)/2)
+        //[Math.floor(((i2+1)/2) *this.W), Math.floor(((j2+1)/2)*this.H)];
+    }
+    GetPixelOne(i: number, j: number): vec2 {
+        //return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
+        return [Math.floor(i *this.W), Math.floor(j*this.H)];
     }
     public static Make(resolution: vec2, value:number, ctx?:CanvasRenderingContext2D)
     {

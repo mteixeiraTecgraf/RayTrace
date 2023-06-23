@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
 //import { Scene } from "./Film";
-import { DEBUG_SAMPLE, DEBUG_SAMPLE2, REPEAT_PX } from "./config";
+import { DEBUG_SAMPLE, DEBUG_SAMPLE2, REPEAT_PX, SAMPLE_DIST } from "./config";
 import { EPSILON, Ray } from "./Primitive";
 import { Scene } from "./Scene";
 
@@ -104,6 +104,10 @@ export function length(v1:vec3)
 {
     return vec3.length(v1);
 }
+export function sqrLen(v1:vec3)
+{
+    return vec3.sqrLen(v1);
+}
 export function normalize(v:vec3)
 {
     return vec3.normalize([0,0,0], v);
@@ -135,6 +139,10 @@ export function toVec3(v:GLMat.vec4):vec3{
     return [v[0],v[1],v[2]];
 }
 
+export function transform(mat:GLMat.mat4, origin: vec3) {
+    return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), mat))
+}
+
 export function identity()
 {
     var m = GLMat.mat4.create();
@@ -154,8 +162,8 @@ export function scaleMat(mat:GLMat.mat4, scale:vec3=[0,0,0])
 }
 
 export const VECS = {
-    ZERO : <vec3>[0,0,0],
-    ONE : <vec3>[1,1,1],
+    get ZERO(){ return <vec3>[0,0,0]},
+    get ONE(){ return <vec3>[1,1,1]}
 }
 
 export const COLOR = {
@@ -218,7 +226,7 @@ export function absdist(n:number, n2:number, delta=EPSILON){
 }
 
 export function debugSample(scene:Scene):boolean{
-    return DEBUG_SAMPLE && absdist(scene.sample[0],DEBUG_SAMPLE[0], 0.002) && absdist(scene.sample[1], DEBUG_SAMPLE[1], 0.002);
+    return DEBUG_SAMPLE && absdist(scene.sample[0],DEBUG_SAMPLE[0], SAMPLE_DIST) && absdist(scene.sample[1], DEBUG_SAMPLE[1], SAMPLE_DIST);
 }
 export function debugSample2(scene:Scene):boolean{
     return DEBUG_SAMPLE2 && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]

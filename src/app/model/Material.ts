@@ -2,23 +2,31 @@ import { vec3 } from "gl-matrix";
 import { Hit, createRay } from "./Primitive";
 import { Scene } from "./Scene";
 import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
-import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, LIMITS, SHINESS } from "./config";
+import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
+import { Sampler } from "./Sampler";
 
 
 
 export abstract class Material{
-    GetPDF(sample: vec3):number {
-        throw new Error("Method not implemented.");
+    sampler = new Sampler()
+    getSample(wi:vec3) {
+        //var r = Math.sqrt(Math.random())
+        //var theta = 2*Math.PI*Math.random();
+        //return [r,theta, 1];
+        var sample = this.sampler.getUnitaryHemisphere()
+        //console.log(sample)
+        //return {s:<vec3>[0,0,1],pdf:sample[2]/Math.PI}
+        return {s:sample,pdf:sample[2]/Math.PI}
     }
-    getSample():vec3 {
-        throw new Error("Method not implemented.");
+    GetPDF({pdf}:{s: vec3,pdf:number}):number {
+        return pdf;
     }
     abstract Eval(scene: Scene, hit: Hit, origin: vec3):vec3;
     IsTransparent(){
         return false;
     }
-    BDRF():vec3
+    BDRF(hit: Hit, origin: vec3):vec3
     {
         return VECS.ONE;
     }
@@ -76,6 +84,12 @@ export class PhongMaterial extends Material{
     }
     P: vec3;
 
+    
+    override BDRF(hit: Hit, origin: vec3):vec3
+    {
+        return scale(this.matColorDiff, 1/Math.PI);
+    }
+    
     checkResult:vec3;
     afterRadianceCalcCheck(hitCode:number, c1:vec3, l:vec3, n:vec3, li:vec3){
         if(FORCCE_HIT_OCL_MAT_CODE)
@@ -141,6 +155,22 @@ export class PhongMetal extends Material{
         return c;
 
     }
+    
+    
+    override getSample(wi:vec3) {
+        if(IGNORE_MIRROR_BDRF) return this.phongMaterial.getSample(wi);
+        return{s:reflect(wi,[0,0,1]),pdf:1}
+    }
+    override BDRF(hit: Hit, origin: vec3):vec3
+    {
+        if(IGNORE_MIRROR_BDRF)return this.phongMaterial.BDRF(hit, origin)
+        let p = hit.p;
+        let n = normalize(hit.n);
+        let v = normalize(sub2(origin, p));
+        let R = this.r0 + (1-this.r0)*Math.pow((1-dot(v,n)),5);
+        //return scale(this.phongMaterial.BDRF(hit, origin), (1-R)) ;
+        return scale(this.phongMaterial.BDRF(hit, origin), (1)) ;
+    }
 }
 //TODO Revisar Refracao
 export class PhongDieletrics extends Material{
@@ -195,6 +225,10 @@ export class PhongDieletrics extends Material{
     }
     override IsTransparent(){
         return true
+    }
+    override BDRF(hit: Hit, origin: vec3):vec3
+    {
+        return VECS.ONE;
     }
 
     refract(d:vec3, n:vec3, ratio:number){
@@ -261,6 +295,14 @@ export class TextureMaterial extends Material{
                 resolve(true);
             })
         })
+    }
+    
+    override BDRF(hit: Hit, origin: vec3):vec3
+    {
+        var colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
+        const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
+        var [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
+        return scale([x,y,z],1/256);
     }
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3
     {

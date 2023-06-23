@@ -122,7 +122,7 @@ export class IntersectionTester{
         }
     }
     root:AccNode = {}
-    Test(ray:Ray){
+    Test(ray:Ray):Hit[]{
 
         if(TEST_BRUTE_FORCE) return this.TestForce(ray);
         /*
@@ -136,9 +136,9 @@ export class IntersectionTester{
         return this.TestNode(ray, this.root)
         
     }
-    TestNode(ray:Ray, node?:AccNode, v = 0):Hit|undefined
+    TestNode(ray:Ray, node?:AccNode, v = 0):Hit[]
     {        
-        if(!node) return;
+        if(!node) return [];
         
         if(verbose) console.log("Computing Box intersections", ray, node);
         var hit = node.box?.ComputeIntersection(ray);
@@ -148,7 +148,7 @@ export class IntersectionTester{
         if(this.root.box && !hit)
         {
             //Not Hit
-            return ;
+            return [];
         }
 
         //console.log("Hit some 1")
@@ -157,7 +157,7 @@ export class IntersectionTester{
         {
             if(!node.instance) {
                 console.warn("No Child nor instance", node);
-                return;
+                return [];
             }
 
             if(verbose) console.log("Computing intersections", ray, node);
@@ -176,7 +176,7 @@ export class IntersectionTester{
             else{
                 //console.log("Hit None", node.instance)
             }
-            return hit;
+            return hit?[hit]:[];
         }
 
         var testRight = this.TestNode(ray, node.child1,v*2);
@@ -184,11 +184,17 @@ export class IntersectionTester{
 
         //testLeft = <Hit>{...testLeft, instanceRef:v};
         //testRight = <Hit>{...testRight, instanceRef:v};
-        return this.CompareHits(this.SafeHit(testRight), this.SafeHit(testLeft));
+        var res = []
+        res.push(...testRight);
+        res.push(...testLeft);
+        res = res.sort(this.CompareHitsN.bind(this));
+        if(verbose) console.log("HitsCompared", res);
+        //return this.CompareHits(this.SafeHit(testRight), this.SafeHit(testLeft));
+        return res.slice(0,3);
 
     }
 
-    TestForce(ray:Ray, v2:boolean =false){
+    TestForce(ray:Ray, v2:boolean =false):Hit[]{
         
         var bestHit:Hit|undefined = undefined; 
         this.instances.forEach(obj => {
@@ -225,16 +231,41 @@ export class IntersectionTester{
             }
             
         });
-        return bestHit;
+        return [bestHit!];
     }
-
-    CompareHits(h1?:Hit, h2?:Hit){
+    ignoreEpslon = false;
+    ignoreNegativeValues = false;
+    ignoreBackface = false;
+    CompareHitsN(h1:Hit, h2:Hit){
+        if(this.ignoreNegativeValues)
+        {
+            if(h1.t<0 && h2.t <0) return h1.t - h2.t;
+            if(h1.t<0) return 1;
+            if(h2.t<0) return -1;
+        }
+        if(this.ignoreBackface)
+        {
+            if(h1.backface && h2.backface) return h1.t - h2.t
+            if(h1.backface) return 1;
+            if(h2.backface) return -1;
+        }
+        if(this.ignoreEpslon)
+        {
+            if(h1.t> EPSILON && h2.t> EPSILON) return h1.t - h2.t
+            if(h1.t> EPSILON) return 1;
+            if(h2.t> EPSILON) return -1;
+        }
+        return h1.t-h2.t;
+    }
+    CompareHits2(h1?:Hit, h2?:Hit){
+        /*
         if(DEBUG_TRACE_POINT && distance(h2?.p??[0,0,0], DEBUG_TRACE_POINT_COORDS)<0.04)
         {
             console.log("Hit CompareHits", h1, h2);
             //return [0,0,1]
             //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
         }
+        */
         if(!h1 && !h2) return;
         if(!h1) return h2;
         if(!h2) return h1;

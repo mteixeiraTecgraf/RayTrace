@@ -23,13 +23,16 @@ export function rotate(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
 }
 export class Transform{
     toLocal(origin: vec3) {
-        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.inverse))
+        //return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.inverse))
+        return utils.transform(this.inverse,origin)
     }
     toGlobal(origin: vec3) {
-        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.matrix))
+        //return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), this.matrix))
+        return utils.transform(this.matrix,origin)
     }
     toGlobalT(origin: vec3) {
-        return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), transpose(this.inverse)))
+        return utils.transform(transpose(this.inverse),origin)
+        //return toVec3(GLMat.vec4.transformMat4([0,0,0,0],toVec4(origin), transpose(this.inverse)))
     }
     toLocalRay(ray:Ray):Ray
     {
