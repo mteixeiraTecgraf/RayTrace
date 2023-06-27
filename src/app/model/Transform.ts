@@ -36,7 +36,7 @@ export class Transform{
     }
     toLocalRay(ray:Ray):Ray
     {
-        return {...ray, origin:this.toLocal(ray.origin), direction:(sub2(this.toLocal(ray.direction),getTranslation(this.inverse)))}
+        return {...ray, origin:this.toLocal(ray.origin), direction:((sub2(this.toLocal(ray.direction),getTranslation(this.inverse))))}
         //return {...ray, origin:this.toLocal(ray.origin)}
     }
     toGlobalRay(ray:Ray):Ray
@@ -53,7 +53,7 @@ export class Transform{
             return <Hit>{
                 ... hit,
                 p:this.toGlobal(hit.p),
-                n:this.toGlobalT(hit.n),
+                n:utils.normalize(this.toGlobalT(hit.n)),
                 //n:normalize(hit.n),
                 
             }
@@ -80,6 +80,7 @@ export class Transform{
         var scale = createMat4([sx,0,0], [0, sy,0], [0,0,sz], [0,0,0])
         var transl = createMat4([1,0,0], [0, 1,0], [0,0,1], translation)
         var mat = mulMat(transl,scale)
+        console.log("Matrix X", {translation,sx, sy,sz, scale, transl, mat});
         return new Transform(mat);
     }
     static fromVec(translation:vec3=[0,0,0], v1:vec3, v2:vec3)

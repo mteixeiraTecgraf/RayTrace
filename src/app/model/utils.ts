@@ -225,10 +225,10 @@ export function absdist(n:number, n2:number, delta=EPSILON){
     return Math.abs(n-n2) < delta
 }
 
-export function debugSample(scene:Scene):boolean{
+export function debugSample(scene:{sample:GLMat.vec2}):boolean{
     return DEBUG_SAMPLE && absdist(scene.sample[0],DEBUG_SAMPLE[0], SAMPLE_DIST) && absdist(scene.sample[1], DEBUG_SAMPLE[1], SAMPLE_DIST);
 }
-export function debugSample2(scene:Scene):boolean{
+export function debugSample2(scene:{sample:GLMat.vec2}):boolean{
     return DEBUG_SAMPLE2 && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
 }
 const factor = 2;

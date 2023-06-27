@@ -4,12 +4,16 @@ import { distance, normalize, add2, add3, sub2, dot, minus, cross, length } from
 import * as utils from "./utils";
 import { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT_OCL_MAT_CODE, LIGHT_FACTOR } from "./config";
 import { Hit, createRay } from "./Primitive";
+import { Sample } from "./Sampler";
 
+export type LightInstanceSample = {light: Light,pdf:number}
+export type LightPointSample = {s:vec3,ns:vec3,pdf:number}
+export interface LightSample extends Sample { light: LightInstanceSample,  point:LightPointSample }
 export abstract class Light{
     public Intensidade: vec3 = [1,1,1];
     public Potencia: vec3 = [1,1,1];
     abstract get SAMPLE_COUNT():number;
-    abstract getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number};
+    abstract getSamplePoint(p: vec3):LightPointSample;
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number } {
         const res = {li:vec3.create(),l:vec3.create()};
         for(var i = 0; i< this.SAMPLE_COUNT; ++i)
@@ -47,7 +51,7 @@ export class PontualLight extends Light{
         return 1;
     }
     
-    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
+    getSamplePoint(p: vec3):LightPointSample {
         return { s: this.Position, ns: sub2(p, this.Position), pdf: 1 };
     }
     SampleRadiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number} {
@@ -111,7 +115,7 @@ export class AreaLight extends Light{
         this.AreaPart = this.Area/this.SAMPLE_COUNT;
     }
     
-    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
+    getSamplePoint(p: vec3):LightPointSample {
     
 
         var Area = this.Area;

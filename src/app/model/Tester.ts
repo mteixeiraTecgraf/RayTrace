@@ -1,6 +1,6 @@
 import { DEFAULTPROGRESS, EPSILON, Hit, EntityInstance, ProgressAction, Ray, getT } from "./Primitive";
 import { Box } from "./Shapes";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, TEST_BRUTE_FORCE } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_LEVEL, TEST_BRUTE_FORCE } from "./config";
 import { distance, max, min, verbose, verbose3 } from "./utils";
 
 export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:EntityInstance}
@@ -122,7 +122,19 @@ export class IntersectionTester{
         }
     }
     root:AccNode = {}
-    Test(ray:Ray):Hit[]{
+    TestRays(rays:Ray[]):Hit[][]{
+        if(false)
+        {
+
+            console.log("Teste", this);
+            let kernelGenerator = (this.root.box!).kernelFunction()
+            let outputs = kernelGenerator(rays)
+            console.log("Teste", outputs);
+            return outputs as Hit[][]
+        }
+        return rays.map(r=>this.Test(r));
+    }
+    Test(ray:Ray, context:any = undefined):Hit[]{
 
         if(TEST_BRUTE_FORCE) return this.TestForce(ray);
         /*
@@ -133,23 +145,33 @@ export class IntersectionTester{
             return ;
         }
         */
-        return this.TestNode(ray, this.root)
+        return this.TestNode(ray, this.root, 0, 0,context)
         
     }
-    TestNode(ray:Ray, node?:AccNode, v = 0):Hit[]
+    TestNode(ray:Ray, node?:AccNode, v = 0, d=0, context:any = undefined):Hit[]
     {        
         if(!node) return [];
         
+        if(context)context.instanceTests??=[]
+        if(context)context.hits??=[]
+
         if(verbose) console.log("Computing Box intersections", ray, node);
         var hit = node.box?.ComputeIntersection(ray);
         
+        if(FORCCE_HIT_LEVEL>=0)
+        {
+            return hit?[hit]:[];
+        }
             
 
         if(this.root.box && !hit)
         {
             //Not Hit
+            if(context)context.hits.push({miss:true, node, v, d, ray});
             return [];
         }
+        if(context)context.hits.push({hit, node, v, d, ray});
+        
 
         //console.log("Hit some 1")
 
@@ -165,11 +187,21 @@ export class IntersectionTester{
             var tHit = node.instance!.shape.ComputeIntersection(tRay);
             //console.log("ComputeIntersection", thit);
             var hit = node.instance!.transform.toGlobalHit(tHit);
+
+            
+            if(context)context.instanceTests.push({ray,tRay, tHit,hit, instance:node.instance});
+            if(context)context.hits.push(hit);
+            
             if(hit) {
                 if(verbose) console.log("Computing Hit", ray, node, tRay, tHit, hit);
                 hit.material = node.instance.material;
                 hit.light = node.instance.light;
                 hit.instanceRef = v;
+                
+                if(hit.p[1]>=2 && hit.material && hit.material.name=='back'&& false)
+                {
+                    console.log("Computing Hit b", {ray, node, tRay, tHit, hit})
+                }            
                 //if(node.instance.light) console.log("Node Light", ray, hit);
                 //console.log("Hit some")
             }
@@ -179,14 +211,24 @@ export class IntersectionTester{
             return hit?[hit]:[];
         }
 
-        var testRight = this.TestNode(ray, node.child1,v*2);
-        var testLeft = this.TestNode(ray, node.child2,(v*2)+1);
+        var testRight = this.TestNode(ray, node.child1,v*2, d+1, context);
+        var testLeft = this.TestNode(ray, node.child2,(v*2)+1,d+1, context);
 
         //testLeft = <Hit>{...testLeft, instanceRef:v};
         //testRight = <Hit>{...testRight, instanceRef:v};
         var res = []
         res.push(...testRight);
         res.push(...testLeft);
+        
+        if(false)
+        {
+            
+            let names = res.map(r=>r.material?.name)
+            if(names.includes('back')&& names.includes('latRed'))
+            {
+                console.log("Computing Hit b", {res, ray})
+            }            
+        }
         res = res.sort(this.CompareHitsN.bind(this));
         if(verbose) console.log("HitsCompared", res);
         //return this.CompareHits(this.SafeHit(testRight), this.SafeHit(testLeft));
@@ -237,6 +279,7 @@ export class IntersectionTester{
     ignoreNegativeValues = false;
     ignoreBackface = false;
     CompareHitsN(h1:Hit, h2:Hit){
+        
         if(this.ignoreNegativeValues)
         {
             if(h1.t<0 && h2.t <0) return h1.t - h2.t;

@@ -1,26 +1,31 @@
 import { vec2, vec3 } from "gl-matrix";
 
-export const FAST = false;
+export const FAST = true;
 export const LIGHT_FACTOR = 1;
 export const AMBIENT_LIGHT = 0.0;
-export const RESOLUTION = [80,80]
+export const RESOLUTION = [100,100]
 export const PATH_TRACE = true
+export const PATH_PIPE = false
 export const ANGLE = 90
 export const SHINESS = 2;
-export const SAMPLE_COUNT = FAST?2:64;
-export const DFIX =  -1;
-export const DMAX = 7;
+export const SAMPLE_COUNT = FAST?4:64;
+export const DFIX = -1;
+export const DMAX = 4;
 export const RANDOM_SAMPLE = true ;
 export const DEFAULT_LIGHT_SAMPLE_COUNT = FAST?2:4 ;
 export const DEFAULT_AREA_SAMPLE_COUNT = 1 ;
 export const LIMITS = [0.69,0.68, 0.15, 0.16];
 export const FORCCE_HIT = false
+export const FORCCE_HIT_LEVEL = -1
+export const FORCCE_MISS_DIRECTION = false
 export const FORCCE_HIT_ON_VERTEX = false
 export const FORCCE_HIT_MAT_CODE = false
 export const RENDER_PDF = false
 export const RENDER_BETA_LEN = false
 export const FORCCE_RAY_HIT_MAT_CODE = -1
 export const IGNORE_MIRROR_BDRF = true
+export const FORCE_MIRROR_BDRF = false
+export const DEBUG_CONTEXT = false
 export const FORCCE_HIT_OCL_MAT_CODE = false
 export const FORCE_HIDE_REFLECTION = false
 export const FORCCE_NORMAL = false

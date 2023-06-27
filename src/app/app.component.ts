@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, NgZone, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, NgZone, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 
 import { Subject, from, interval, timer } from 'rxjs';
 import { Application } from './Application';
@@ -12,14 +12,21 @@ import { Application } from './Application';
 })
 export class AppComponent implements OnInit{
   title = 'raytrace';
+  @ViewChildren("canvases") canvases: QueryList<ElementRef<HTMLCanvasElement>>;
+  
   @ViewChild('canvas', { static: true }) 
   canvas: ElementRef<HTMLCanvasElement>;
   ctx :CanvasRenderingContext2D;
+  ctxs :CanvasRenderingContext2D[];
+  startTime: number;
   constructor(private application:Application, 
     private ref: ChangeDetectorRef, 
     private ngZone: NgZone ){    
   }
-  
+  get counts()
+  {
+    return Array(10).map((_,i)=>i)
+  }
   progress = 0;
   progressSubj = new Subject<number>();
   progressObj = this.progressSubj.asObservable();
@@ -31,7 +38,9 @@ export class AppComponent implements OnInit{
 
   }
   reload(sceneNum:number){
-    this.ctx = this.canvas.nativeElement.getContext('2d') as CanvasRenderingContext2D;
+    this.startTime = performance.now();
+    //this.ctx = this.canvas.nativeElement.getContext('2d') as CanvasRenderingContext2D;
+    this.ctxs = this.canvases.map(c=>c.nativeElement.getContext('2d') as CanvasRenderingContext2D);
     var self = this;
     this.loading = true;
     this.ref.markForCheck();
@@ -43,7 +52,7 @@ export class AppComponent implements OnInit{
       setTimeout(
         ()=>{
               
-          this.application.initScene(this.ctx, sceneNum).subscribe(
+          this.application.initScene(this.ctxs, sceneNum).subscribe(
             {
 
       //() => console.log('success'),
@@ -82,11 +91,20 @@ export class AppComponent implements OnInit{
   }
   loading = false;
   public rerenderProps: Array<number> = [1];
+  lastTime = 0;
   refresh(v:{i:number,j:number}){
     //if((v.i*100/v.j)%10 == 0)
     {
-      this.progress = (v.i*100/v.j);
-      console.log("Pixel",v.i, v.i*100/v.j)
+      this.lastTime = Math.max(this.lastTime,this.startTime)
+      let nowTime = performance.now();
+      let currentTimeEl = nowTime-this.lastTime;
+      this.lastTime = nowTime;
+      let timeElapsed = nowTime - this.startTime;
+      let perc = (v.i/v.j);
+      this.progress = (perc*100);
+      let estimate = timeElapsed/perc;
+      let remaining = estimate-nowTime;
+      console.log("Pixel",{i:v.i, percentual:this.progress, current:pretty(currentTimeEl),elapsed:pretty(timeElapsed),estimate:pretty(estimate), remaining:pretty(remaining)})
       //this.progressSubj.next(50);
       //this.progress = (50);
       this.rerenderProps[0]++;
@@ -95,6 +113,11 @@ export class AppComponent implements OnInit{
       //this.ref.detectChanges();
       
       //this.progress = i*100/j;
+      function pretty(time:number)
+      {
+        let tins = time/1000;
+        return `${Math.floor(tins/60)}m e ${tins%60}s`
+      }
     }
 
   }

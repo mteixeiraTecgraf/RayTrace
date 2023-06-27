@@ -1,5 +1,6 @@
 <div>
-  <canvas #canvas width="800" height="600"></canvas>
+  <!--canvas #canvas width="800" height="600"></canvas-->
+  <canvas #canvases *ngFor="let i of counts" width="20" height="20"></canvas>
     <div *ngFor="let i of rerenderProps" >
   
   

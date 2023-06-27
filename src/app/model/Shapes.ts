@@ -1,7 +1,8 @@
-import { vec3 } from "gl-matrix";
-import { EPSILON, Hit, Ray } from "./Primitive";
+import { vec2, vec3 } from "gl-matrix";
+import { EPSILON, Hit, Ray, calculatePoint, createRay } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
 import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
+import { GPU } from "gpu.js";
 
 export abstract class Shape {
     computationCount = 0;
@@ -205,6 +206,182 @@ export class Box implements Shape{
             this.bMax[2]+this.bMin[2],
         ],0.5)
     }
+    kernelFunction(){
+        var self = this;
+        const ns:vec3[][] = [
+            [[-1,0,0],[1,0,0]],
+            [[0,-1,0],[0,1,0]],
+            [[0,0,-1],[0,0,1]],
+        ]
+        return processGroup
+        function processGroup (rays:Ray[]):(Hit[]|Error)[]
+        {
+            const limit = 16000;
+            var n = (rays.length+1)/limit;
+            console.log("rays.length",rays.length, n)
+            var res = Array();
+            for(let i=0;i<n;i++)
+            {
+                res.push(...processUnity(rays.slice(i*limit,(i+1)*limit)));
+            }
+            return res
+        }
+        function processUnity (rays:Ray[])
+        {
+            if(!rays || rays.length==0) return []
+            var kernel1 = tntfBySide().setOutput([3,rays.length])
+            var origins = rays.map(r=>r.direction) as number[][]
+            var dests =  rays.map(r=>r.origin) as number[][];
+            let tns = kernel1(self.bMin, self.bMax, origins, dests ) as  number[][][]
+            //console.log("tns", tns as number[][][])
+            tns = kernel1(self.bMin, self.bMax, origins, dests ) as  number[][][]
+            //console.log("tns", tns as number[][][])
+            var kernel2 = reshape().setOutput([rays.length])
+            let t2 =  kernel2(tns);
+            //return t2;
+            var kernel3 = pftKernel().setOutput([3, rays.length])
+            var res = kernel3(self.bMin, self.bMax, origins, dests, t2 as number[][]) as [number,number,number,number][][]
+            //console.log("T2", res, t2 as number[][])
+            /*
+            var r = new Array(res.length).map(i=>new Array(3))
+            var r2 = res.reduce((p,v,i)=>{
+                console.log("p",p,v,i)
+                p[Math.ceil(i/3)][i%3]=v;
+                return p;
+            },r)
+            console.log("r",r, r2)
+            */
+            return res.map((r,idx)=>processResultArr(r,rays[idx].origin,rays[idx].direction))
+        }
+        function tntfBySide(){
+            const gpu = new GPU();
+            const F = false;
+            const kernel = gpu.createKernel(function(bmin:number[], bmax:number[],origin:number[][],direction:number[][]){
+                var o = origin[this.thread.y][this.thread.x]
+                var d = direction[this.thread.y][this.thread.x]
+                let i1 = (bmin[this.thread.x]-o)/d
+                let i2 = (bmax[this.thread.x]-o)/d
+                let tn = Math.min(i1,i2);
+                let tf = Math.max(i1,i2);
+                return [tn,tf, i1, i2]
+            })
+            return kernel;
+        }
+        function pftKernel(){
+            const gpu = new GPU();
+            const F = false;
+            const kernel = gpu.createKernel(function(bmin:number[], bmax:number[],origin:number[][],direction:number[][], tslist:number[][]){
+                
+                let tn = tslist[this.thread.y][0];
+                let tf = tslist[this.thread.y][1];
+                let i1 = tslist[this.thread.y][2];
+                let i2 = tslist[this.thread.y][2];
+                if(tn>tf){
+                    return [-1000,-1000,-1000,-1000]
+                    //return 0;
+                }
+                
+                var t = tn>0?tn:tf
+                var backface = tn<0?1:0
+                var o = origin[this.thread.y][this.thread.x]
+                var d = direction[this.thread.y][this.thread.x]
+                var p = o+d*t;
+                let r = [0,0,0,0]
+                if(Math.abs(p-bmin[this.thread.x])<0.00001){
+                    //return ns[this.thread.x][0]
+                    return [0,this.thread.x,t,backface]
+                }
+                if(Math.abs(p-bmax[this.thread.x])<0.00001){
+                    //return ns[this.thread.x][0]
+                    return [1,this.thread.x,t, backface]
+                }
+                return [-2,-2,-2,-2];
+            })
+            /*
+                let ns = [
+                    [-1,0,0],
+                    [0,-1,0],
+                    [0,0,-1],
+                    [1,0,0],
+                    [0,1,0],
+                    [0,0,1],
+                ]
+            
+                return [-10,-10,-10];
+                 */
+            return kernel;
+        }
+        function reshape(){
+            /*
+            const kernel = (arr:number[][][])=>{
+                return arr.map(v=>{
+                    let tns = v.map(c=>c[0]);
+                    let tfs = v.map(c=>c[1]);
+                    let tn = Math.max(...tns);
+                    let tf = Math.min(...tfs);
+                    let n = tns.findIndex(v=>v==tn)
+                    let f = tfs.findIndex(v=>v==tf)
+
+                    return [tn,tf]//[n,f]]
+                })
+            }
+
+            return kernel;
+            */
+            const F = false;
+            const gpu = new GPU();
+            const kernel = gpu.createKernel(function(arr:number[][][]){
+                let t1 = arr[this.thread.x][0][0]
+                let t2 = arr[this.thread.x][0][1]
+                let t3 = arr[this.thread.x][1][0]
+                let t4 = arr[this.thread.x][1][1]
+                let t5 = arr[this.thread.x][2][0]
+                let t6 = arr[this.thread.x][2][1]
+                //let tns = Math.max(t1,t2,t3)
+                let tns = Math.max(t1,t3)
+                tns = Math.max(tns, t5)
+                let tfs = Math.min(t2,t4)
+                tfs = Math.max(tfs, t6)
+                //let tfs = Math.min(tnfs[0][1],tnfs[1][1],tnfs[2][1])
+
+                return [tns,tfs]
+            })
+            return kernel;
+        }
+
+        function processResultArr(arr:[number,number,number, number][], origin:vec3, destination:vec3)
+        {
+            var idx = arr.find(v=>(v[0]>=0)||(v[0]<=-900))
+            //console.log("Arr", arr, idx)
+            if(idx)
+                return processResult(idx,origin,destination)
+            else
+            {
+                return Error("Undefined")
+            }
+        }
+        function processResult([minmax,x,t,backface]:[number,number,number, number], origin:vec3, destination:vec3)
+        {
+            if(minmax<-900)
+            {
+                return Error("InvalidResult")
+            }
+            if(minmax<0)
+            {
+                return Error("Undefined")
+            }
+            //console.log(ns,x,minmax, [minmax,x,t,backface])
+            
+            return [<Hit>{
+                t,
+                n:<vec3>ns[x][minmax],
+                backface:backface==1,
+                p:calculatePoint(origin, destination, t),
+
+            }]
+
+        }
+    }
     ComputeIntersection(ray: Ray): Hit | undefined {
         this.computationCount++;
         
@@ -215,14 +392,22 @@ export class Box implements Shape{
         for(let i=0; i<3;++i){
             let bm = this.bMin[i];
             let bmax = this.bMax[i];
-            let tn = Math.max(bm-ray.origin[i])/ray.direction[i];
-            let tf = Math.min(bmax-ray.origin[i])/ray.direction[i];
-            if(tn >tf)
-            {
-                let tmp = tf;
-                tf = tn;
-                tn = tmp;
-            }
+            let i1 = (bm-ray.origin[i])/ray.direction[i]
+            let i2 = (bmax-ray.origin[i])/ray.direction[i]
+            var vs = [i1,i2]
+            let tn = Math.min(...vs);
+            let tf = Math.max(...vs);
+            /*
+            
+            let i1 = bm-ray.origin[i]/ray.direction[i]
+            let i2 = bmax-ray.origin[i]/ray.direction[i]
+            let tn = Math.min(i1,i2);
+            let tf = Math.max(i1,i2);
+            tn0 = Math.max(tn0, tn);
+            tn1 = Math.min(tn1, tf);
+            h[0] = (tn0==tn)?i:h[0];
+            h[1] = (tn1==tf)?3+i:h[1];
+            */
             tn0 = Math.max(tn0, tn);
             tn1 = Math.min(tn1, tf);
             h[0] = (tn0==tn)?i:h[0];
@@ -264,6 +449,8 @@ export class Box implements Shape{
                 [0,1,0],
                 [0,0,1],
             ]
+            //if(hf<0)
+            //        throw Error("Invalid Normal Option");
             n = ns[hf]
 
             if(true){
@@ -271,38 +458,56 @@ export class Box implements Shape{
                 if(closeTo(p[0],this.bMin[0],0.0001))
                 {
                     n = [-1,0,0];
+                    p[0]=this.bMin[0]
                 }
                 else if(closeTo(p[0],this.bMax[0],0.0001))
                 {
                     n = [1,0,0];
+                    p[0]=this.bMax[0]
                 }
                 else if(closeTo(p[1],this.bMin[1],0.0001))
                 {
                     n = [0,-1,0];
+                    p[1]=this.bMin[1]-0.000000001
                 }
                 else if(closeTo(p[1],this.bMax[1],0.0001))
                 {
-                    n = [0,-1,0];
+                    n = [0,1,0];
+                    p[1]=this.bMax[1]+0.000000001
                 }
                 else if(closeTo(p[2],this.bMin[2],0.0001))
                 {
                     n = [0,0,-1];
+                    p[2]=this.bMin[2]
                 }
                 else if(closeTo(p[2],this.bMax[2],0.0001))
                 {
                     n = [0,0,1];
+                    p[2]=this.bMax[2]
                 }
                 else{
                     throw Error("Invalid Normal Option");
                 }
             }
             this.SuccessCount++;
+            
             //console.log("CloseTo",p, this.bMin, this.bMax, n )
             return <Hit>{
                 t:t,
                 p:p,
                 backface: tmin < 0,
                 n:n,
+                context:{
+                    h,
+                    n,
+                    p,
+                    ray,
+                    tmin,
+                    tmax,
+                    cn:ns[hf],
+                    bmin:this.bMin,
+                    bmax:this.bMax
+                }
             }
             //return
         }

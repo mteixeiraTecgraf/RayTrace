@@ -8,7 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "docker:build:angular": "docker build -t angular:16 -f ./Dockerfile .",
-    "docker:run:base": "docker run -it -p 4200:4200 -p 9876:9876 -v $PWD:/src -u $(id -u ${USER}):$(id -g ${USER}) angular:16",
+    "docker:run:base": "docker run -it -p 4202:4200 -p 9878:9876 -v $PWD:/src -u $(id -u ${USER}):$(id -g ${USER}) angular:16",
     "docker:run:console": "npm run docker:run:base -- bash",
     "drc": "npm run docker:run:console",
     "docker:run:start": "npm run docker:run:base npm run ds ",
@@ -31,6 +31,7 @@
     "@angular/router": "^15.2.0",
     "bootstrap": "^5.2.3",
     "gl-matrix": "^3.4.3",
+    "gpu.js": "^2.16.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.12.0"

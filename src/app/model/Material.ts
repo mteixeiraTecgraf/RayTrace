@@ -2,15 +2,22 @@ import { vec3 } from "gl-matrix";
 import { Hit, createRay } from "./Primitive";
 import { Scene } from "./Scene";
 import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
-import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
+import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
-import { Sampler } from "./Sampler";
+import { Sample, Sampler } from "./Sampler";
 
 
+export interface MaterialSample extends Sample{type:"Material"}
+function createSample(s:vec3,pdf:number, n:vec3, wi:vec3):MaterialSample{return {s,pdf, n, wi, type:"Material"}}
 
+function isMaterialSample(sample:{s: vec3,pdf:number}):sample is MaterialSample
+{
+    return Boolean(sample as MaterialSample)
+}
 export abstract class Material{
     sampler = new Sampler()
-    getSample(wi:vec3) {
+    constructor(public name:string = ""){}
+    getSample(wi:vec3, n:vec3):MaterialSample {
         //var r = Math.sqrt(Math.random())
         //var theta = 2*Math.PI*Math.random();
         //return [r,theta, 1];
@@ -18,10 +25,14 @@ export abstract class Material{
         //console.log(sample)
         //return {s:<vec3>[0,0,1],pdf:sample[2]/Math.PI}
         //return {s:sample,pdf:sample[2]/Math.PI}
-        return {s:sample,pdf:1/(2*Math.PI)}
+        return createSample(sample, 1/(2*Math.PI), n, wi)
     }
-    GetPDF({pdf}:{s: vec3,pdf:number}):number {
-        return pdf;
+    GetPDF(sample:Sample):number {
+        if(isMaterialSample(sample))
+        {
+            return sample.pdf;
+        }
+        return sample.pdf;
     }
     abstract Eval(scene: Scene, hit: Hit, origin: vec3):vec3;
     IsTransparent(){
@@ -31,9 +42,13 @@ export abstract class Material{
     {
         return VECS.ONE;
     }
+    BRDF(wi:vec3, wo:vec3, hit:Hit):vec3
+    {
+        return VECS.ONE;
+    }
 }
 export class PhongMaterial extends Material{
-    constructor(private matColorDiff:vec3, private matColorSpec:vec3 = [0,0,0], private shiness:number = SHINESS){ super()}
+    constructor(private matColorDiff:vec3, private matColorSpec:vec3 = [0,0,0], private shiness:number = SHINESS, name:string=""){ super(name)}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3 {
         var v2 = sampleBetween2(scene.Sample, LIMITS[0],LIMITS[1],LIMITS[2],LIMITS[3])
         if( verbose2) 
@@ -92,6 +107,12 @@ export class PhongMaterial extends Material{
         return scale(this.matColorDiff, this.factor);
     }
     
+    override BRDF(wi:vec3, wo:vec3, hit:Hit):vec3
+    {
+        let f = 1;
+        return scale(this.BDRF(hit,add2(hit.p, wo)), f);
+    }
+    
     checkResult:vec3;
     afterRadianceCalcCheck(hitCode:number, c1:vec3, l:vec3, n:vec3, li:vec3){
         if(FORCCE_HIT_OCL_MAT_CODE)
@@ -131,7 +152,7 @@ export class PhongMaterial extends Material{
     }
 }
 export class PhongMetal extends Material{
-    constructor(private phongMaterial:PhongMaterial, private r0:number){ super()}
+    constructor(private phongMaterial:PhongMaterial, private r0:number, name:string=""){ super(name)}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3
     {
         let p = hit.p;
@@ -157,26 +178,61 @@ export class PhongMetal extends Material{
         return c;
 
     }
+    override BRDF(wi:vec3, wo:vec3, hit:Hit):vec3
+    {
+        return this.BDRF(hit, add2(hit.p, wo));
+    }
+
+    override GetPDF(sample: { s: vec3; pdf: number; n:vec3, wi:vec3 }): number {
+        if(isMaterialSample(sample))
+        {
+            return sample.pdf
+        }
+        else{
+            return sample.pdf;
+        }
+    }
     
     
-    override getSample(wi:vec3) {
-        if(IGNORE_MIRROR_BDRF) return super.getSample(wi);
-        return{s:reflect(wi,[0,0,1]),pdf:1}
+    override getSample(wi:vec3, n:vec3) {
+        if(IGNORE_MIRROR_BDRF) return this.phongMaterial.getSample(wi, n);
+        
+        let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
+        var eps = this.sampler.get1D()
+        if(eps>R)
+        {
+            let ret = this.phongMaterial.getSample(wi,n)
+            return createSample(ret.s,(1-R)*ret.pdf,n,wi)
+        }
+        else{
+            return createSample(normalize(reflect(wi,n)),R, n, wi)
+        }
+        //return{s:normalize(reflect(wi,n)),pdf:1}
+        return super.getSample(wi, n);
     }
     override BDRF(hit: Hit, origin: vec3):vec3
     {
         if(IGNORE_MIRROR_BDRF)return this.phongMaterial.BDRF(hit, origin)
+        //if(FORCE_MIRROR_BDRF) return VECS.ZERO;
         let p = hit.p;
         let n = normalize(hit.n);
         let v = normalize(sub2(origin, p));
         let R = this.r0 + (1-this.r0)*Math.pow((1-dot(v,n)),5);
+        //r0 quanto eh refletido minimo
+        //r0=1 espelho perfeito
+        //paralelo v e n geram dot 1 fator 0 pow 0 (1-r0) 0 e sobra R=r0(reflete menos)
+        //perpend  v e n geram dot 0 fotor 1 pow 1a5(1-r0)1 e sobra R=1(reflete tudo)
+        //R=1 remove totalmente a parte difusa, somente reflexo
+        //R=r0 remove parcialmente a parte difusa
+        //paralelo      R=r0 menos reflexo
+        //perpendicular R=1 somente reflexo
         //return scale(this.phongMaterial.BDRF(hit, origin), (1-R)) ;
-        return scale(this.phongMaterial.BDRF(hit, origin), (1)) ;
+        return scale(this.phongMaterial.BDRF(hit, origin), (1-R)) ;
     }
 }
 //TODO Revisar Refracao
 export class PhongDieletrics extends Material{
-    constructor(private n:number){super(); this.n = 1}
+    constructor(private n:number, name:string){ super(name); this.n = 1}
     override Eval(scene: Scene, hit: Hit, origin: vec3): vec3 {
         let p = hit.p;
         let n = normalize(hit.n);
@@ -276,8 +332,8 @@ export class TextureMaterial extends Material{
     loaded$ = this.loaded.asObservable();
     res = 500;
     data: Uint8ClampedArray;
-    constructor(imagePath:string){ 
-        super()
+    constructor(imagePath:string, name:string){ 
+        super(name)
         this.image = new Image(this.res,this.res);
         this.image.onload = (()=>{
             this.canvas = document.createElement('canvas');
@@ -301,16 +357,16 @@ export class TextureMaterial extends Material{
     
     override BDRF(hit: Hit, origin: vec3):vec3
     {
-        var colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
+        let colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
         const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
-        var [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
+        let [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
         return scale([x,y,z],1/256);
     }
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3
     {
-        var colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
+        let colorIndices = getColorIndicesForCoord(Math.floor(hit.uv[0]*this.res), Math.floor(hit.uv[1]*this.res), this.canvas.width, true)
         const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
-        var [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
+        let [x,y,z] = [this.data[redIndex],this.data[greenIndex], this.data[blueIndex]];
         //var [x,y,z] = this.canvas.getContext('2d')!.getImageData(hit.uv[0]*this.res, hit.uv[1]*this.res, 1, 1).data;
         //console.log("Mark", colorIndices, x,y,z, hit.uv[0]*this.res, hit.uv[1]*this.res, this.canvas.width*this.canvas.height);
         //return [x,0,0];

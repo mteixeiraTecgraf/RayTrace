@@ -4,11 +4,11 @@ import { AMBIENT_LIGHT, AreaLight, Camera, Film, PontualLight, Scene, Transform,
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
-import { COLOR, VECS, add2 } from './model/utils';
+import { COLOR, VECS, add2, scale as scaleVec } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { bufferTime, map, filter, tap} from 'rxjs/operators';
 import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
-import { DEFAULTPROGRESS, ProgressAction } from './model/Primitive';
+import { DEFAULTPROGRESS, ProgressAction, createPrimitive } from './model/Primitive';
 
 @Injectable({
  providedIn: 'root',
@@ -23,10 +23,10 @@ export class Application{
   W = RESOLUTION[0];
   H = RESOLUTION[1];
   angle = ANGLE;
-  initScene(ctx :CanvasRenderingContext2D, sceneNumber:number = 1){
+  initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1){
     return new Observable<{i:number,j:number}>(a=>{
         this._initScene(ctx, sceneNumber, {progress:(i,j)=>{
-            if((i*100/j)%10 == 0)
+            if((i*100/j)%1 == 0)
             {
                 a.next({i,j});
   }
@@ -38,7 +38,7 @@ export class Application{
         }})
     })
   }
-  _initScene(ctx :CanvasRenderingContext2D, sceneNumber:number = 1,o:{progress:ProgressAction} = {progress:DEFAULTPROGRESS}){
+  _initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1,o:{progress:ProgressAction} = {progress:DEFAULTPROGRESS}){
     //const W = this.ctx.canvas.width;
     //const H = this.ctx.canvas.height;
     if(false)
@@ -48,12 +48,16 @@ export class Application{
       this.angle = 10;
       
     }
-    ctx.canvas.width = this.W*REPEAT_PX
-    ctx.canvas.height = this.H*REPEAT_PX
+    ctx.forEach(cv=>
+      {
+        cv.canvas.width = this.W*REPEAT_PX
+        cv.canvas.height = this.H*REPEAT_PX
+      }
+    )
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W ,this.H ], 0);
+    var film = Film.Make([this.W ,this.H ], 0,ctx);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -95,7 +99,7 @@ export class Application{
             //await this.bunnysceneSimple(scene);
         scene.prepareScene();
                 
-            scene.Render(ctx, o);
+            scene.Render(o);
             scene.ReportComputations();
 
         })
@@ -107,7 +111,7 @@ export class Application{
     this.scene.camera.RotateOriginZ(-40)
     this.scene.camera.RotateZ(-40)
     //this.scene.camera.RotateX(15*Math.random()-7)
-    this.scene.Render(ctx)
+    this.scene.Render()
     /*
      this.ctx.fillStyle = 'red';
      const square = new Square(this.ctx);
@@ -121,19 +125,19 @@ export class Application{
     this.scene.camera.RotateOriginX(angle)
     this.scene.camera.RotateX(angle)
     //this.scene.camera.RotateX(15*Math.random()-7)
-    this.scene.Render(ctx)
+    this.scene.Render()
   }
   RotateY(ctx :CanvasRenderingContext2D, angle:number){
     this.scene.camera.RotateOriginY(angle)
     this.scene.camera.RotateY(angle)
     //this.scene.camera.RotateX(15*Math.random()-7)
-    this.scene.Render(ctx)
+    this.scene.Render()
   }
   RotateZ(ctx :CanvasRenderingContext2D, angle:number){
     this.scene.camera.RotateOriginZ(angle)
     this.scene.camera.RotateZ(angle)
     //this.scene.camera.RotateX(15*Math.random()-7)
-    this.scene.Render(ctx)
+    this.scene.Render()
   }
   
   async testScene1(scene:Scene){
@@ -229,10 +233,12 @@ export class Application{
   async boxSceneBase(scene:Scene){
     
     scene.camera.addToOrigin([0,-1.5,1.5,])
+    //this.scene.camera.RotateZ(-60)
     //this.SimpleLightScene(scene);
     this.SimpleArea(scene)
     this.addCeil(scene)
     this.addBack(scene);
+    this.addFront(scene);
     this.addLateralReflective(scene);
     this.addLeft(scene);
     this.addFloor(scene);
@@ -249,7 +255,7 @@ export class Application{
         translate([-0.5,-0.5,-1]),
         scale([10,10,0.1]),
       ));
-    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([1,0.6,0.6]), 0.2));
+    this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([1,0.6,0.6]), 0.2, "sphere"));
     await this.addBunny(scene,"bunny_simple2.off");
     this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
     this.scene.camera.RotateOriginZ(-40)
@@ -271,13 +277,13 @@ export class Application{
     this.scene.camera.RotateZ(-40)
     
   }
-  async addSphere(scene: Scene, transform:Transform = new Transform(), material:Material = new PhongMaterial([1,0,0],[1,1,1], 20)) {
+  async addSphere(scene: Scene, transform:Transform = new Transform(), material:Material = new PhongMaterial([1,0,0],[1,1,1], 20, "sphere")) {
     //scaleMat(mat, [1,0,]);
-    scene.AddEntity({name:"Sphere",material: material, shape:new Sphere(), 
+    scene.AddEntity(createPrimitive({name:"Sphere",material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
       transform:transform,
       //transform:new Transform()
-    })
+    }))
   }
   private httpOptions = {
     headers: new HttpHeaders({
@@ -380,7 +386,7 @@ export class Application{
     for(let p of polygon)
     {
       //console.log("Vertex", p, vertexes);
-      scene.AddEntity({name:`vertice ${p[0]} ${p[1]} ${p[2]}`,shape: new Vertex(vertexes[p[0]],vertexes[p[1]], vertexes[p[2]]), transform:transform, material:material2})
+      scene.AddEntity(createPrimitive({name:`vertice ${p[0]} ${p[1]} ${p[2]}`,shape: new Vertex(vertexes[p[0]],vertexes[p[1]], vertexes[p[2]]), transform:transform, material:material2}))
     }
     console.log("Mesh Complete");
   }
@@ -390,32 +396,33 @@ export class Application{
     //rightwall mat
     var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
     //rightwall mat
-    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
+    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10, "red"), 0.600, "red");
     //leftwall mat
-    var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1), 0.600);
+    var leftGreenMat = new PhongMetal(new PhongMaterial([0.4,1,0.4], [0,0,0],1, "red"), 0.600, "red");
     var material6 = new PhongMaterial([0.2,0.2,0.2], [0.9,0.9,0.9],1);
     
     this.SimpleLightScene(scene);
-    scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
+    scene.AddEntity(createPrimitive({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
       //[0,2,-1+dz], 1
       transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
       //transform:new Transform()
-    })
-    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+    }))
+    scene.AddEntity(createPrimitive({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)}))
     //rightRed
-    scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity(createPrimitive({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)}))
     //left green
-    scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity(createPrimitive({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)}))
     //back
-    scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+    scene.AddEntity(createPrimitive({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)}))
     this.addCeil(scene);
 
   }
   SimpleArea(scene:Scene){
-    var factor = 32
+    var factor = 16
     var lightIntens = <vec3>[factor,factor,factor];
     scene.AddAreaLight(new AreaLight([-1.2,0.8,2.90],[0.5,0,0],[0,-0.5,0],lightIntens))
     scene.AddAreaLight(new AreaLight([1.0,0.8,2.90],[0.5,0,0],[0,-0.5,0],lightIntens))
+    scene.AddAreaLight(new AreaLight([-0.2,-1.0,1.00],[0.0,0,0.5],[0.5,0,0],lightIntens))
   }
   SimpleLightScene(scene:Scene){
     var lightIntens = <vec3>[5,5,5];
@@ -428,29 +435,44 @@ export class Application{
     this.addBack(scene);
     
   }
-  readonly COLOR = COLOR.WHITE;
+  readonly COLOR = scaleVec(COLOR.WHITE,0.8);
   addBack(scene:Scene){
     
     //rightwall mat
-    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20);
+    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20, "back");
     //back
-    scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+    scene.AddEntity(createPrimitive({name:"Fundo",material: material2, shape:new Box(), 
+    transform: 
+      //Transform.fromScaleAndTranslation([-2.0,0.50,-0.1], 4,0.1,3.2)
+      Transform.fromPipe(scale([ 8,0.1,8.2]), translate([-4.0,3,-4.1]))
+    })
+     
+    
+    )
+    
+  }
+  addFront(scene:Scene,transform:Transform = Transform.fromScaleAndTranslation([-4.0,-1.6,-4.1], 8,0.1,8.2)){
+    
+    //rightwall mat
+    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20, "front");
+    //back
+    scene.AddEntity(createPrimitive({name:"Fundo",material: material2, shape:new Box(), transform}))
     
   }
   addCeil(scene:Scene){
     //ceil mat
-    var material5 = new PhongMaterial(this.COLOR, [0.6,0.6,0.6],10);
+    var material5 = new PhongMaterial(this.COLOR, [0.6,0.6,0.6],10, "ceil");
     //teto
-    scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3.0], 4,3,0.1)})
+    scene.AddEntity(createPrimitive({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-4.0,-4,3.0], 8,8,0.1)}))
 
   }
-  addFloor(scene:Scene, transform:Transform=Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)){
+  addFloor(scene:Scene, transform:Transform=Transform.fromScaleAndTranslation([-4,-4  ,-0.1], 8,8,0.1)){
     //rightwall mat
-    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20);
+    var material2 = new PhongMaterial(this.COLOR, [0.8,0.8,0.8],20, "floor");
     //piso
-    scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:
+    scene.AddEntity(createPrimitive({name:"Piso",material: material2, shape:new Box(), transform:
       transform
-    })
+    }))
    
   }
   simpleLightCeilScene(scene:Scene){
@@ -464,31 +486,31 @@ export class Application{
     this.SimpleLightScene(scene);
     this.addLateralReflective(scene);
   }
-  addLateralReflective(scene:Scene){
+  addLateralReflective(scene:Scene, transform=Transform.fromScaleAndTranslation([2,-4,-4], 0.1,8,8)){
     
     //rightwall mat
-    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
+    var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10, "latRed"), 0.600, "latRed");
     //rightRed
-    scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity(createPrimitive({name:"Direita",material: rightRedMat, shape:new Box(), transform}))
     
   }
   addBox(scene:Scene, transform: Transform = new Transform())
   {
-    var material6 = new PhongMaterial([1.0,1.0,1.0], [0.9,0.9,0.9],1);
+    var material6 = new PhongMaterial(this.COLOR, [0.9,0.9,0.9],1, "box");
     //var material6 = new PhongDieletrics(1.33); //TODO Test hit box ray inside
     
-    scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
+    scene.AddEntity(createPrimitive({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
       //[0,2,-1+dz], 1
       transform:transform
       //transform:new Transform()
-    })
+    }))
   }
-  addLeft(scene:Scene){
+  addLeft(scene:Scene, transform=Transform.fromScaleAndTranslation([-2.1,-4.0,-4], 0.1,8,8)){
     
     //leftwall mat
-    var leftGreenMat = new PhongMetal(new PhongMaterial([0.0,1,0.4], [0,0,0],1), 0.600);
+    var leftGreenMat = new PhongMetal(new PhongMaterial([0.0,1,0.4], [0,0,0],1, "latGreen"), 0.600, "latGreen");
     //left green
-    scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+    scene.AddEntity(createPrimitive({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform}))
         
   }
 
@@ -497,9 +519,9 @@ export class Application{
     //console.log("mfyImageData", myImageData)
   //this.ctx.putImageData(myImageData,0,0);
   //scene.testCameraPixels();
-  var material = new PhongMaterial([1,0,0], [0,0,0], 0.1);
+  var material = new PhongMaterial([1,0,0], [0,0,0], 0.1, "mat1");
   //rightwall mat
-  var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20);
+  var material2 = new PhongMaterial([1,1,1], [0.8,0.8,0.8],20, "mat2");
   //rightwall mat
   var rightRedMat = new PhongMetal(new PhongMaterial([1,0,0], [1,0.3,0.3],10), 0.600);
   //leftwall mat
@@ -532,11 +554,11 @@ export class Application{
     //transform:new Transform()
   })
   */
-  scene.AddEntity({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
+  scene.AddEntity(createPrimitive({name:"Caixa 1",material: material6, shape:new Box([0,0,0],[1,1,1]), 
     //[0,2,-1+dz], 1
     transform:Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
     //transform:new Transform()
-  })
+  }))
   
   
   //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
@@ -553,15 +575,15 @@ export class Application{
   // scene.AddEntity({material: material4, shape:new Plane([1,0,0], [-2,0,0]), transform:new Transform()})
   // scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,3,0]), transform:new Transform()})
   // scene.AddEntity({material: material5, shape:new Plane([0,0,-1], [0,0,4]), transform:new Transform()})
-  scene.AddEntity({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)})
+  scene.AddEntity(createPrimitive({name:"Piso",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2,0,-0.1], 4,3,0.1)}))
   //rightRed
-  scene.AddEntity({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)})
+  scene.AddEntity(createPrimitive({name:"Direita",material: rightRedMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([2,0,-0.1], 0.1,3,3.1)}))
   //left green
-  scene.AddEntity({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)})
+  scene.AddEntity(createPrimitive({name:"Esquerda",material: leftGreenMat, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.1,0,-0.1], 0.1,3,3.1)}))
   //back
-  scene.AddEntity({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)})
+  scene.AddEntity(createPrimitive({name:"Fundo",material: material2, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,2,-0.1], 4,0.1,3.2)}))
   //teto
-  scene.AddEntity({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)})
+  scene.AddEntity(createPrimitive({name:"Teto",material: material5, shape:new Box(), transform:Transform.fromScaleAndTranslation([-2.0,0,3], 4,3,0.1)}))
 
 
   }
@@ -580,7 +602,7 @@ export class Application{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0);
+    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0,[ctx]);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -594,10 +616,10 @@ export class Application{
     this.scene = scene;
     
     scene.AddPonctualLight(new PontualLight([0,2,dz]))
-    scene.Render(ctx);
+    scene.Render();
   }
 
-  testScene3(ctx :CanvasRenderingContext2D){
+  testScene3_Remove(ctx :CanvasRenderingContext2D){
     //const W = this.ctx.canvas.width;
     //const H = this.ctx.canvas.height;
       this.angle = 100;
@@ -613,7 +635,7 @@ export class Application{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0);
+    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0,[ctx]);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -641,11 +663,11 @@ export class Application{
       //new Light([0,5,0]), 
     //scene.AddLight(new Light([2.5,0,10]),)
     
-    scene.AddEntity({name:"Sphere",material: material, shape:new Sphere(), 
+    scene.AddEntity(createPrimitive({name:"Sphere",material: material, shape:new Sphere(), 
       //[0,2,-1+dz], 1
       transform:Transform.fromScaleAndTranslation([0,2,-1+dz],)
       //transform:new Transform()
-    })
+    }))
     
     
     //scene.AddEntity({material: material, shape:new Sphere([-2,5,0], 1)})
@@ -655,8 +677,8 @@ export class Application{
     //scene.AddEntity({material: material, shape:new Sphere([0,7,0], 1)})
     ////scene.AddEntity({material: material, shape:new Sphere([-1,2,0], 1)})
     //scene.AddEntity({material: material, shape:new Sphere([3,5,0], 1)})
-    scene.AddEntity({name:"Plane", material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()})
+    scene.AddEntity(createPrimitive({name:"Plane", material: material2, shape:new Plane([0,0,1], [0,0,-1+dz]), transform:new Transform()}))
     //scene.AddEntity({material: material2, shape:new Plane([0,-1,0], [0,10,0])})
-    scene.Render(ctx);
+    scene.Render();
   }
 }
