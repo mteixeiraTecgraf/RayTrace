@@ -1,5 +1,5 @@
 import { vec3 } from "gl-matrix";
-import { Hit, createRay } from "./Primitive";
+import { BSDF, EPSILON, Hit, Interaction, createRay } from "./Primitive";
 import { Scene } from "./Scene";
 import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
 import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
@@ -45,6 +45,41 @@ export abstract class Material{
     BRDF(wi:vec3, wo:vec3, hit:Hit):vec3
     {
         return VECS.ONE;
+    }
+    ComputeScatteringFunctions(interaction:Interaction):{specular:boolean}{
+        var self=this;
+        interaction.BSDF = new BasicBSDF(interaction);
+        
+        return {specular:false};        
+    }
+}
+class BasicBSDF implements BSDF{
+    sampler = new Sampler()
+    constructor(protected interaction:Interaction){}
+    cosFact(wi: vec3): number {
+        return dot(this.interaction.n, wi)
+    }
+    sample(wi: vec3, n: vec3): MaterialSample {
+        //var r = Math.sqrt(Math.random())
+        //var theta = 2*Math.PI*Math.random();
+        //return [r,theta, 1];
+        var sample = this.sampler.getUnitaryHemisphere()
+        //console.log(sample)
+        //return {s:<vec3>[0,0,1],pdf:sample[2]/Math.PI}
+        //return {s:sample,pdf:sample[2]/Math.PI}
+        return createSample(sample, 1/(2*Math.PI), n, wi)
+    }
+    BRDF(wi: vec3, wo: vec3, hit: Hit): vec3 {
+        return VECS.ONE;
+    }
+    
+}
+class DiffuseBasicBSDF extends BasicBSDF{
+    constructor(interaction:Interaction, private color:vec3){super(interaction)}
+    
+    readonly factor = 1/Math.PI
+    override BRDF(wi: vec3, wo: vec3, hit: Hit): vec3 {
+        return scale(this.color, this.factor);
     }
 }
 export class PhongMaterial extends Material{
@@ -99,6 +134,12 @@ export class PhongMaterial extends Material{
         }
     }
     P: vec3;
+    override ComputeScatteringFunctions(interaction: Interaction): { specular: boolean; } {
+        var s = super.ComputeScatteringFunctions(interaction);
+        
+        interaction.BSDF = new DiffuseBasicBSDF(interaction, this.matColorDiff);
+        return s;
+    }
 
     
     readonly factor = 1/Math.PI
@@ -151,6 +192,20 @@ export class PhongMaterial extends Material{
         return false;
     }
 }
+class ReflectBSDF extends BasicBSDF{
+    constructor(interaction:Interaction, private r0:number){super(interaction)}
+    
+    readonly factor = 1/Math.PI
+    override cosFact(wi: vec3): number {
+        return 1;
+    }
+    override sample(wi: vec3, n: vec3): MaterialSample {
+        return createSample(normalize(reflect(wi,n)),this.r0, n, wi)
+    }
+    override BRDF(wi: vec3, wo: vec3, hit: Hit): vec3 {
+        return VECS.ONE;
+    }
+}
 export class PhongMetal extends Material{
     constructor(private phongMaterial:PhongMaterial, private r0:number, name:string=""){ super(name)}
     Eval(scene: Scene, hit: Hit, origin: vec3):vec3
@@ -180,7 +235,20 @@ export class PhongMetal extends Material{
     }
     override BRDF(wi:vec3, wo:vec3, hit:Hit):vec3
     {
-        return this.BDRF(hit, add2(hit.p, wo));
+        if(IGNORE_MIRROR_BDRF)return this.phongMaterial.BRDF(wi,wo,hit)
+        if(FORCE_MIRROR_BDRF) return this.BRDFMirror(wi,wo,hit)
+        //if(FORCE_MIRROR_BDRF) return VECS.ZERO;
+        return this.BRDFMaterial(wi, wo, hit)
+    }
+    override ComputeScatteringFunctions(interaction:Interaction):{specular:boolean}{
+
+        var self = this;
+        if(this.isSpecular2())
+        {
+            interaction.BSDF = new ReflectBSDF(interaction, this.r0);
+            return {specular:true}
+        }
+        return this.phongMaterial.ComputeScatteringFunctions(interaction);        
     }
 
     override GetPDF(sample: { s: vec3; pdf: number; n:vec3, wi:vec3 }): number {
@@ -193,30 +261,68 @@ export class PhongMetal extends Material{
         }
     }
     
+    isSpecular(wi:vec3,n:vec3){
+        let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
+        var eps = this.sampler.get1D()
+        return eps<R
+    }
+    isSpecular2(){
+        if(IGNORE_MIRROR_BDRF) return false;
+        if(FORCE_MIRROR_BDRF) return true;
+        //let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
+        var eps = this.sampler.get1D()
+        return eps<this.r0
+    }
     
+    getReflectSample(wi:vec3, n:vec3) {
+        return createSample(normalize(reflect(wi,n)),this.r0, n, wi)
+    }
+    getMaterialSample(wi:vec3,n:vec3){
+        
+        let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
+        var eps = this.sampler.get1D()
+        let ret = this.phongMaterial.getSample(wi,n)
+        return createSample(ret.s,(1-this.r0)*ret.pdf,n,wi)
+    }
     override getSample(wi:vec3, n:vec3) {
         if(IGNORE_MIRROR_BDRF) return this.phongMaterial.getSample(wi, n);
         
         let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
         var eps = this.sampler.get1D()
+        if(FORCE_MIRROR_BDRF)eps = 0;
         if(eps>R)
         {
             let ret = this.phongMaterial.getSample(wi,n)
             return createSample(ret.s,(1-R)*ret.pdf,n,wi)
         }
         else{
-            return createSample(normalize(reflect(wi,n)),R, n, wi)
+            //if(this.name=="latRed") console.log("wi,n",{wi,n, ref:reflect(wi,n)})
+            return createSample(normalize(reflect(wi,n)),1, n, wi)
         }
         //return{s:normalize(reflect(wi,n)),pdf:1}
         return super.getSample(wi, n);
     }
     override BDRF(hit: Hit, origin: vec3):vec3
     {
+        throw Error("Invalid Method")
         if(IGNORE_MIRROR_BDRF)return this.phongMaterial.BDRF(hit, origin)
+        if(FORCE_MIRROR_BDRF) return VECS.ONE;
         //if(FORCE_MIRROR_BDRF) return VECS.ZERO;
-        let p = hit.p;
+        //return this.BRDFMaterial(hit, origin)
+    }
+    
+    BRDFMirror(wi:vec3, wo:vec3, hit:Hit):vec3
+    {
+        return VECS.ONE
+    }
+    BRDFMaterial(wi:vec3, wo:vec3, hit:Hit):vec3
+    {
+        //if(FORCE_MIRROR_BDRF) return VECS.ZERO;
+        //let p = hit.p;
         let n = normalize(hit.n);
-        let v = normalize(sub2(origin, p));
+        //let o = add2(p, wo);
+        //let v = normalize(sub2(o, p));
+        let v = wo;
         let R = this.r0 + (1-this.r0)*Math.pow((1-dot(v,n)),5);
         //r0 quanto eh refletido minimo
         //r0=1 espelho perfeito
@@ -227,12 +333,89 @@ export class PhongMetal extends Material{
         //paralelo      R=r0 menos reflexo
         //perpendicular R=1 somente reflexo
         //return scale(this.phongMaterial.BDRF(hit, origin), (1-R)) ;
-        return scale(this.phongMaterial.BDRF(hit, origin), (1-R)) ;
+        return scale(this.phongMaterial.BRDF(wi,wo,hit), (1-R)) ;
+    }
+}
+
+
+class RefractBSDF extends BasicBSDF{
+    constructor(interaction:Interaction, private n:number, private a:vec3 = [1,0.7,0.7]){super(interaction)}
+    
+    readonly factor = 1/Math.PI
+    override cosFact(wi: vec3): number {
+        return 1;
+    }
+    get index(){
+        return Math.pow((this.n-1)/(this.n+1),2)
+    }
+    get R(){
+        return 
+    }
+    entering(wi: vec3, n: vec3){
+        //let cosTheta = dot(wi,n);
+        //return cosTheta>0;
+        return !this.interaction.hit.backface;
+    }
+    ratio(wi: vec3, n: vec3){
+        if(this.entering(wi,n))
+        {
+            
+            //console.log("Not", {wi, n, bs:this});
+            return 1/this.n
+        }
+        //console.log("Not Entering", wi, n);
+        return this.n/1
+    }
+    override sample(wi: vec3, n: vec3): MaterialSample {
+        let t = this.refract(wi,n, this.ratio(wi,n));
+        if(length(t)<EPSILON) {
+            console.log("Error", {wi, n})
+            t=[0,0,1]
+        }
+        return createSample(normalize(t),1-this.index, n, wi)
+    }
+    refract(wi:vec3,n:vec3, ratio:number)
+    {
+        let d = minus(wi);
+        let cosTheta = dot(d,n);
+        let cosTheta2 = Math.pow(cosTheta,2);
+        let radixB = 1-Math.pow(ratio,2)*(1-cosTheta2)
+        if(radixB<0) return VECS.ZERO;
+        let cosPhi = Math.sqrt(radixB)
+        let t1a = add2(d, scale(n,cosTheta))
+        let t1 = scale(t1a,ratio)
+        let t2 = scale(n, cosPhi)
+        let t = sub2(t1,t2);
+        //console.log("Refract", {wi, n, ratio})
+        return t;
+    }
+    temp(){
+        
+        let I = vec3.fromValues(1,1,1);
+        let ratio = this.n/1;
+
+        //var entering = wi[2]>0 ;
+        var entering = !this.interaction.hit.backface;
+        if(entering){
+        }
+        else{
+            ratio = 1/this.n;
+            I = [0.5,0.5,0.5]
+        }
+    }
+    override BRDF(wi: vec3, wo: vec3, hit: Hit): vec3 {
+        //console.log("BRDF", {wi, wo,hit, bs:this});
+        return hit.backface?this.a:scale(VECS.ONE, 0.1);
     }
 }
 //TODO Revisar Refracao
 export class PhongDieletrics extends Material{
-    constructor(private n:number, name:string){ super(name); this.n = 1}
+    constructor(private n:number, name:string){ 
+        super(name); 
+        //this.n = 1
+        
+        console.log("Dieletrics", {n,name})
+    }
     override Eval(scene: Scene, hit: Hit, origin: vec3): vec3 {
         let p = hit.p;
         let n = normalize(hit.n);
@@ -322,6 +505,38 @@ s
 2
 t
         */
+    }
+
+    get index(){
+        return Math.pow((this.n-1)/(this.n+1),2)
+    }
+    isRefract(){
+        if(IGNORE_MIRROR_BDRF) return false;
+        if(FORCE_MIRROR_BDRF) return true;
+        //let R = this.r0 + (1-this.r0)*Math.pow((1-dot(wi,n)),5);
+        let R = this.index;
+        var eps = this.sampler.get1D()
+        //return eps>R;
+        return true;
+    }
+    override ComputeScatteringFunctions(interaction:Interaction):{specular:boolean}{
+
+        var self = this;
+        
+        //console.log("Dieletrics", {interaction})
+        if(this.isRefract())
+        {   
+            interaction.BSDF = new RefractBSDF(interaction, this.n);
+            //console.log("Dieletrics", {interaction})
+            return {specular:!interaction.hit.backface}
+        }
+        else
+        {
+            interaction.BSDF = new ReflectBSDF(interaction, this.index);
+        }
+        //return this.phongMaterial.ComputeScatteringFunctions(interaction);        
+
+        return {specular:true}
     }
 
 }

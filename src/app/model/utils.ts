@@ -15,10 +15,39 @@ export function setVerbose(value:boolean)
     verbose3 = value
 }
 
+export function saveCanvasAs(canvas:HTMLCanvasElement, fileName:string) {
+    // get image data and transform mime type to application/octet-stream
+    var canvasDataUrl = canvas.toDataURL()
+            .replace(/^data:image\/[^;]*/, 'data:application/octet-stream');
+    var link = document.createElement('a'); // create an anchor tag
+
+    // set parameters for downloading
+    link.setAttribute('href', canvasDataUrl);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('download', fileName);
+
+    // compat mode for dispatching click on your anchor
+    if (document.createEvent) {
+        var evtObj = document.createEvent('MouseEvents');
+        evtObj.initEvent('click', true, true);
+        link.dispatchEvent(evtObj);
+    } else if (link.click) {
+        link.click();
+    }
+}
+
 
 export function closeTo(v1:number, v2:number, eps = EPSILON)
 {
     return Math.abs(v1 - v2) < eps;
+}
+export function VecAbs(n:vec3):vec3{
+    return <vec3>n.map(v=>Math.abs(v));
+}
+export function VecMap(n:vec3, min:vec3,max:vec3):vec3{
+    let delta = sub2(max, min);
+    let factor = <vec3>delta.map(v=>1/v)
+    return mul(sub2(n,min), factor);
 }
 
 export function sollution([a,b,c]:vec3)
@@ -163,13 +192,16 @@ export function scaleMat(mat:GLMat.mat4, scale:vec3=[0,0,0])
 
 export const VECS = {
     get ZERO(){ return <vec3>[0,0,0]},
-    get ONE(){ return <vec3>[1,1,1]}
+    get ONE(){ return <vec3>[1,1,1]},
+    create(n:number){ return <vec3>[n,n,n]}
 }
 
 export const COLOR = {
     RED : <vec3>[1,0,0],
     GREEN : <vec3>[0,1,0],
     BLUE : <vec3>[0,0,1],
+    GRAY_8 : <vec3>[0x8/16,0x8/16,0x8/16],
+    GRAY_F : <vec3>[0xf/16,0xf/16,0xf/16],
     BLACK : VECS.ZERO,
     WHITE : VECS.ONE,
 }

@@ -1,5 +1,5 @@
 import { vec2, vec3 } from "gl-matrix";
-import { EPSILON, Hit, Ray, calculatePoint, createRay } from "./Primitive";
+import { EPSILON, Hit, Interaction, Ray, calculatePoint, createHit, createRay } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
 import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
 import { GPU } from "gpu.js";
@@ -7,7 +7,7 @@ import { GPU } from "gpu.js";
 export abstract class Shape {
     computationCount = 0;
     SuccessCount = 0;
-    abstract ComputeIntersection(ray:Ray):Hit|undefined;
+    abstract ComputeIntersection(ray:Ray):Interaction | undefined;
     abstract BondingBox():Box;
 }
 
@@ -16,6 +16,7 @@ export class Sphere implements Shape{
     SuccessCount = 0;
     type="Sphere";
     constructor( ){
+        console.log("Sphere", this)
         
     }
     bbox = new Box([-1,-1,-1], [1,1,1]);
@@ -52,24 +53,18 @@ export class Sphere implements Shape{
             return ;
         }
         
-        if(v1) console.log("Solutions", sols,a,b,c)
         //console.log("Intersection", a,b,c)
         var t1 = Math.min(...posSols);
         //if(t < t1)return;
         var t = t1;
         var p = add2(ray.origin,scale(ray.direction, t));
         //var p = scale(ray.direction, t);
-        var backface = (posSols.length == 1)
+        var backface = (posSols.filter(v=>v>0).length == 1)
         var n= normalize(sub2(p,this.center));
         //var material = obj.material
+        //if(length(ray.origin)<1) console.log("Solutions", {ray, sols,a,b,c})
         
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
+        return Interaction.fromRayAndHit(ray,createHit({p,n,t, backface}))
     }
     
 }
@@ -78,7 +73,7 @@ export class Plane implements Shape{
     computationCount = 0;
     SuccessCount = 0;
     constructor(public normal:vec3, public point:vec3){}
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         var d2 = dot(ray.direction, this.normal)
         //console.log("Plane Intersection", d2, ray.direction, this.normal)
@@ -96,13 +91,7 @@ export class Plane implements Shape{
         var n= this.normal;
         //console.log("Plane", num, d2, t, p, n, backface);
             //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
+        return Interaction.fromRayAndHit(ray, createHit({t,p,n,backface}))
     }
     bbox = new Box(sub2(this.point, [1000,1000,0.001] ), add2(this.point, [1000,1000,0.001]) )
     BondingBox():Box
@@ -119,17 +108,17 @@ export class Area1 implements Shape{
     constructor(){
         //this.plane = null
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         //return ;
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
+        var intr = this.plane.ComputeIntersection(ray);
+        if(intr)
         {
-            var [x,y] = hit.p;
+            var [x,y] = intr.p;
             //if(delta[0]<1)
             if(x>=0 && x<1 && y>=0 && y<1)
             {
-                return hit;
+                return intr;
             }
         }
         return ;
@@ -149,17 +138,17 @@ export class Area implements Shape{
         //console.log("Area", e1, e2, cross(e1,e2));
         this.plane = new Plane(cross(e1,e2),p)
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
         //return ;
         //ray.origin
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
+        var intr = this.plane.ComputeIntersection(ray);
+        if(intr)
         {
             //console.log("Plant Hit", hit);
             //var [x,y] = hit.p;
-            var p = hit.p;
+            var p = intr.p;
             var pn = sub2(p,this.p);
             var x = dot(pn, this.e1);
             var y = dot(pn, this.e2);
@@ -167,7 +156,7 @@ export class Area implements Shape{
             //if(delta[0]<1)
             if(x>=0 && x<1 && y>=0 && y<1)
             {
-                return hit;
+                return intr;
             }
         }
         return ;
@@ -214,7 +203,7 @@ export class Box implements Shape{
             [[0,0,-1],[0,0,1]],
         ]
         return processGroup
-        function processGroup (rays:Ray[]):(Hit[]|Error)[]
+        function processGroup (rays:Ray[]):(Interaction[]|Error)[]
         {
             const limit = 16000;
             var n = (rays.length+1)/limit;
@@ -372,17 +361,13 @@ export class Box implements Shape{
             }
             //console.log(ns,x,minmax, [minmax,x,t,backface])
             
-            return [<Hit>{
-                t,
-                n:<vec3>ns[x][minmax],
-                backface:backface==1,
-                p:calculatePoint(origin, destination, t),
-
-            }]
+            return [
+                createHit({t,p:calculatePoint(origin, destination, t),n:<vec3>ns[x][minmax],backface:backface==1,})
+            ]
 
         }
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         
 
@@ -492,11 +477,8 @@ export class Box implements Shape{
             this.SuccessCount++;
             
             //console.log("CloseTo",p, this.bMin, this.bMax, n )
-            return <Hit>{
-                t:t,
-                p:p,
-                backface: tmin < 0,
-                n:n,
+            return Interaction.fromRayAndHit(ray, createHit({p,n,t, backface: tmin <= 0,},
+            {
                 context:{
                     h,
                     n,
@@ -509,6 +491,7 @@ export class Box implements Shape{
                     bmax:this.bMax
                 }
             }
+            ))
             //return
         }
         //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
@@ -541,7 +524,7 @@ export class Vertex implements Shape{
         this.normal = normalize(this.cross);
         this.area = length(this.cross)/2
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         let d = ray.direction;
         const denominador = triple(d,this.e2,this.e1);
         if(Math.abs(denominador)<=EPSILON){
@@ -564,14 +547,10 @@ export class Vertex implements Shape{
         //let p = add2(scale(this.e1,u),scale(this.e2,v))
         let p = add2(ray.origin, scale(d, t))
         
-        return <Hit>{
-            backface,
-            n,
-            t,
-            p,
+        return Interaction.fromRayAndHit(ray,createHit({p,n,t, backface},{
             forceOnVertex:FORCCE_HIT_ON_VERTEX,
             uv:[u,v]
-        }
+        }))
         
     }
     BondingBox(): Box {

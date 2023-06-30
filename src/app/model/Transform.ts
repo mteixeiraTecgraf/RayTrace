@@ -1,6 +1,6 @@
 import { mat4, vec3 } from "gl-matrix";
 import { createMat4, cross, getTranslation, identity, inverse, mulMat, scaleMat, sub2, toVec3, toVec4, transpose } from "./utils";
-import { Hit, Ray } from "./Primitive";
+import { Hit, Ray, createHit } from "./Primitive";
 import * as GLMat from  "gl-matrix";
 import * as utils from "./utils";
 
@@ -49,14 +49,11 @@ export class Transform{
     {
         if(hit)
         {
-
-            return <Hit>{
+            return createHit({
                 ... hit,
                 p:this.toGlobal(hit.p),
-                n:utils.normalize(this.toGlobalT(hit.n)),
-                //n:normalize(hit.n),
-                
-            }
+                n:utils.normalize(this.toGlobalT(hit.n))
+            })
         }
         return undefined;
     }

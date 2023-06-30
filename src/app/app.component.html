@@ -1,20 +1,31 @@
 <div>
+  <div style="display: flex;justify-content: space-around ;">
+
+    <p>Total:{{count}}</p>
+    <p>Atual:{{localCount}}</p>
+    <p>Average:{{perfSummary.average}}</p>
+  </div>
+  <div style="display: flex;justify-content: space-around ;">
+
+    <p>Elapsed:{{perfSummary.elapsed}}</p>
+    <p>Estimate:{{perfSummary.estimate}}</p>
+    <p>Remaining:{{perfSummary.remaining}}</p>
+  </div>
   <!--canvas #canvas width="800" height="600"></canvas-->
   <canvas #canvases *ngFor="let i of counts" width="20" height="20"></canvas>
     <div *ngFor="let i of rerenderProps" >
-  
-  
-    <div *ngIf="loading" class="spinner-border" role="status">
-      <span class="visually-hidden">Loading...</span>
+      
+      <div *ngIf="loading" class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar" role="progressbar" attr.style="width:{{progress}}%" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
+      </div>
+      <button *ngFor="let num of [1,2,3,4,5]" (click)="reload(num)">Cena {{num}}</button>  
+      <button (click)="rotateX(-40)">RotateX</button>  
+      <button (click)="rotateY(-40)">RotateY</button>  
+      <button (click)="rotateZ(-40)">RotateZ</button>  
     </div>
-    <div class="progress">
-      <div class="progress-bar" role="progressbar" attr.style="width:{{progress}}%" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
-    </div>
-    <button *ngFor="let num of [1,2,3,4,5]" (click)="reload(num)">Cena {{num}}</button>  
-    <button (click)="rotateX(-40)">RotateX</button>  
-    <button (click)="rotateY(-40)">RotateY</button>  
-    <button (click)="rotateZ(-40)">RotateZ</button>  
-  </div>
 </div>
 <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
 <!-- * * * * * * * * * * * The content above * * * * * * * * * * * -->
