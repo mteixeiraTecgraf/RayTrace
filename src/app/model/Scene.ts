@@ -259,7 +259,7 @@ export class Scene {
             if (light) {
                 if (DFIX<=0 && (i == 0 || specular)) {
                     Lp.push(light.Potencia);
-                    if(FORCE_END_COLORS)Lp.push(utils.COLOR.GREEN);
+                    if(false)Lp.push(utils.COLOR.BLACK);
                     //if(i > 0) console.log("Luz")
                     return {L: light.Potencia, Lp};
                 }
@@ -281,7 +281,7 @@ export class Scene {
                 
                 //L = [0,0,0];
                 var N = 1;
-                for(var ns = 0 ; ns<N;ns++){
+                //for(var ns = 0 ; ns<N;ns++){
 
                     //let Le = this.getLightRadiance(hit, ray, mat)
                     var lightSamples = this.getLightSamples()
@@ -316,11 +316,13 @@ export class Scene {
                     {
                         L_Step = add2(L_Step, mul(mul(Le, calcBDRF), beta))
                     }
-                    if(false) L_Step = (normalize(wi))
+                    if(false) L_Step = utils.VECS.ONE
+                    if(false) L_Step = utils.VecAbs(normalize(wi))
                     if(false) L_Step = utils.VecAbs(utils.scale(utils.VECS.ONE,p[1]/4))
                     if(false) L_Step = utils.VecAbs(beta)
                     if(false) L_Step = hit.backface?[1,0,0]:[0,1,0]
                     if(false) L_Step = specular?[1,0,0]:[0,1,0]
+
 
                     
                     //TEMP TEST RETURNS
@@ -381,22 +383,24 @@ export class Scene {
                     let prob =prob1
                     //if(hit.material?.name== "Sphere"&&i==1 && hit.backface) console.log("HitSphere2", {interaction,sp, calcBDRF, beta, Le})
 
-                    if(false) L_Step = prob>0.5?[1,0,0]:[0,1,0]
-                    ;
-                    if(!specular && (this.sampler.get1D() > prob) && !NO_BETA_DECAY)
+                    if(false) L_Step = prob>0.5?[1,0,0]:[0,1,0];
+                    //prob /= i>3?2:prob;
+                    //prob = i>2?prob:1
+                    if(!specular&& (this.sampler.get1D() < prob) && !NO_BETA_DECAY)
                     {
 
                         //Lp.push(utils.COLOR.RED);
-                        if(false) Lp.push(utils.COLOR.GREEN)
+                        if(false) Lp.push(Math.random()<0.4/(10-i)?utils.COLOR.RED:utils.COLOR.RED)
                         if(false) Lp.push(utils.VecAbs(beta))
                         if(false) Lp.push(utils.VecAbs(calcBDRF))
                         if(false) Lp.push(utils.VECS.create(pdf))
                         if(false) Lp.push(utils.VECS.create(cosFact))
                         break;
                     }
+                    //if(i>7) break;
                     if(prob<EPSILON)
                     {
-                        if(false) Lp.push(utils.COLOR.BLUE)
+                        if(false) Lp.push(utils.COLOR.GREEN)
                         if(false) Lp.push(utils.VecAbs(beta))
                         if(false) Lp.push(utils.VecAbs(calcBDRF))
                         if(false) Lp.push(utils.VECS.create(pdf))
@@ -413,7 +417,7 @@ export class Scene {
                     //return {L:utils.scale(utils.VECS.ONE,p[0]+2), Lp}
                     //return {L:utils.VecMap(p,[-2,-0,0],[2,2,3]),Lp}
 
-                }
+                //}
             }
         }
         return {L, Lp};

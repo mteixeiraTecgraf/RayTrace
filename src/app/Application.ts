@@ -1,6 +1,6 @@
 import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/core';
 import { vec3 } from 'gl-matrix';
-import { AMBIENT_LIGHT, AreaLight, Camera, Film, PERCENTUAL_STEP, PontualLight, SAMPLE_COUNT, Scene, Transform, rotate, scale, translate } from './model';
+import { AMBIENT_LIGHT, AreaLight, CONFIG_HIGHLIGHT, Camera, Film, PERCENTUAL_STEP, PontualLight, SAMPLE_COUNT, Scene, Transform, rotate, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
@@ -90,10 +90,10 @@ export class Application{
             sceneFunction = this.scene2;
             break;
         case 3:
-            sceneFunction =  this.scene3;
+            sceneFunction =  this.scene2Mirror;
             break;
         case 4:
-            sceneFunction =  this.scene4;
+            sceneFunction =  this.scene2Mirror2;
             break;
         case 5:
             sceneFunction =  this.scene5;
@@ -167,7 +167,7 @@ export class Application{
     scene.camera.RotateX(-10);    
     scene.camera.addToOrigin([0,-2.0,1.5,])
   }
-  async scene2(scene:Scene){
+  async scene2(scene:Scene, factor=CONFIG_HIGHLIGHT?16:64){
     this.addBox(scene, 
       //Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
       Transform.fromPipe(scale([0.6,0.6,0.6]), rotate(-50,"z"),translate([0.3,1.4,0])),
@@ -179,11 +179,7 @@ export class Application{
       "Box2"
     );
    
-    this.scene.camera.RotateOriginZ(-40)
-    this.scene.camera.RotateZ(-40)
-    this.scene.camera.RotateOriginX(30)
-    this.scene.camera.RotateX(30)
-    this.boxSceneBase(scene,16);
+    this.boxSceneBase(scene,factor);
     
     return;
     await this.addVertices(scene);
@@ -193,6 +189,27 @@ export class Application{
       translate([0.5,0.5,0.5]),
 
     ));
+  }
+  async scene2Mirror(scene:Scene){
+
+    this.scene.camera.RotateOriginZ(-40)
+    this.scene.camera.RotateZ(-40)
+    this.scene.camera.RotateOriginX(30)
+    this.scene.camera.RotateX(30)
+    this.scene2(scene,CONFIG_HIGHLIGHT?16:64);
+    
+    return;
+  }
+  
+  async scene2Mirror2(scene:Scene){
+
+    this.scene.camera.RotateOriginZ(30)
+    this.scene.camera.RotateZ(30)
+    this.scene.camera.RotateOriginX(-15)
+    this.scene.camera.RotateX(-15)
+    this.scene2(scene,CONFIG_HIGHLIGHT?16:64);
+    
+    return;
   }
   async scene3(scene:Scene){
     scene.camera.RotateX(-45)

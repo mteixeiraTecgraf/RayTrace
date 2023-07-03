@@ -2,7 +2,7 @@ import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { add2, createMat4, inverse, normalize, saveCanvasAs, setPixel, sub2, toVec3, toVec4, verbose,  } from "./utils";
 
-import { RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT } from "./config";
+import { CONFIG_NAME, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, SAVE_FILE } from "./config";
 
 import { Ray, RayGenerator } from "./Primitive";
 import { Sampler } from "./Sampler";
@@ -82,7 +82,7 @@ export class Film{
         {
             let res = this.Context.map((_,i)=>i).map(index => Film.RenderImageInContextS(this.Context[index], this.Data[index], this));
             console.log("SampleCount", this, this.sampleCount)
-            this.Context.forEach((c,idx2)=>saveCanvasAs(c.canvas,`Canvas_${idx2}_${this.Resolution[0]}x${this.Resolution[1]}_${this.sampleCount}.png`))
+            if(SAVE_FILE)this.Context.forEach((c,idx2)=>saveCanvasAs(c.canvas,`Canvas_${idx2}_${this.Resolution[0]}x${this.Resolution[1]}_${this.sampleCount}_${CONFIG_NAME}.png`))
             return res;
         }
         return Film.RenderImageInContextS(this.Context[idx], this.Data[idx], this);

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, NgZo
 
 import { Subject, from, interval, startWith, timer } from 'rxjs';
 import { Application } from './Application';
+import { NUM_CICLES } from './model';
 
 
 @Component({
@@ -96,7 +97,7 @@ export class AppComponent implements OnInit{
   public rerenderProps: Array<number> = [1];
   count = 0;
   localCount = 0;
-  n = 30;
+  n = NUM_CICLES;
   first = false;
   
   totalPerf = new PerfCount(0)
