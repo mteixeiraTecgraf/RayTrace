@@ -1,19 +1,133 @@
 <div>
-  <canvas #canvas width="800" height="600"></canvas>
-    <div *ngFor="let i of rerenderProps" >
   
-  
-    <div *ngIf="loading" class="spinner-border" role="status">
-      <span class="visually-hidden">Loading...</span>
+  <div class="container">
+    
+    <div class="accordion" id="accordionExample">
+      
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingScene">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseScene" aria-expanded="true" aria-controls="collapseScene">
+            Scene
+          </button>
+        </h2>
+        <div id="collapseScene" class="accordion-collapse collapse show" aria-labelledby="headingScene">
+          <div class="accordion-body">
+            
+            <div class="m-auto">
+              <div *ngFor="let i of rerenderProps" >
+      
+                <div *ngIf="loading" class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar" role="progressbar" [style.width.%]="progress" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
+                </div>
+                
+                <div class="row m-auto py-2">
+                  <button *ngFor="let num of [1,2,3,4,5,6,7]" class="col" (click)="reload(num)">Cena {{num}}</button>  
+                </div>
+                <div class="row m-auto py-2">
+                  <button (click)="rotateX(-40)" class="col" >RotateX</button>  
+                  <button (click)="rotateY(-40)" class="col" >RotateY</button>  
+                  <button (click)="rotateZ(-40)" class="col" >RotateZ</button>  
+                </div>
+                <div class="row m-auto py-2">
+                  <button (click)="Continue()" class="col" >Continue</button>  
+                  <button (click)="Cancel()" class="col" >Cancel</button>  
+                  <button (click)="reset()" class="col" >Reset</button>  
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingText">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseText" aria-expanded="true" aria-controls="collapseText">
+            Text
+          </button>
+        </h2>
+        <div id="collapseText" class="accordion-collapse collapse" aria-labelledby="headingText">
+          <div class="accordion-body">
+            
+            <div class="m-auto">
+              <div class="mb-3">
+                <label for="exampleFormControlTextarea1" class="form-label">Scene YML</label>
+                <textarea #sceneText class="form-control" id="exampleFormControlTextarea1" rows="3"></textarea>
+              </div>
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-primary mb-3" (click)="runText(sceneText.value)">Carregar Cena</button>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingRender">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRender" aria-expanded="true" aria-controls="collapseRender">
+            Render
+          </button>
+        </h2>
+        <div id="collapseRender" class="accordion-collapse collapse show" aria-labelledby="headingRender">
+          <div class="accordion-body">
+            
+            <div class="row w-25 m-auto">
+              <canvas #canvases class="Main" width="20" height="20"></canvas>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingStats">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStats" aria-expanded="true" aria-controls="collapseStats">
+            Stats
+          </button>
+        </h2>
+        <div id="collapseStats" class="accordion-collapse collapse show" aria-labelledby="headingStats">
+          <div class="accordion-body">
+            <div class="m-auto">
+              
+              <div style="display: flex;justify-content: space-around ;">
+
+                <p>Total:{{count}}</p>
+                <p>Atual:{{localCount}}</p>
+                <p>Average:{{perfSummary.average}}</p>
+              </div>
+              <div style="display: flex;justify-content: space-around ;">
+            
+                <p>Elapsed:{{perfSummary.elapsed}}</p>
+                <p>Estimate:{{perfSummary.estimate}}</p>
+                <p>Remaining:{{perfSummary.remaining}}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+        
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingPaths">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePaths" aria-expanded="true" aria-controls="collapsePaths">
+            Path
+          </button>
+        </h2>
+        <div id="collapsePaths" class="accordion-collapse collapse" aria-labelledby="headingPaths" >
+          <div class="accordion-body">
+            
+            <div class="row w-75 m-auto">
+              <canvas #canvases *ngFor="let i of counts" class="col-2" width="10" height="10"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="progress">
-      <div class="progress-bar" role="progressbar" attr.style="width:{{progress}}%" aria-valuemin="0" aria-valuemax="100">{{progress}}%</div>
-    </div>
-    <button *ngFor="let num of [1,2,3,4,5]" (click)="reload(num)">Cena {{num}}</button>  
-    <button (click)="rotateX(-40)">RotateX</button>  
-    <button (click)="rotateY(-40)">RotateY</button>  
-    <button (click)="rotateZ(-40)">RotateZ</button>  
   </div>
+  <!--canvas #canvas width="800" height="600"></canvas-->
+
 </div>
 <!-- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * -->
 <!-- * * * * * * * * * * * The content above * * * * * * * * * * * -->

@@ -1,12 +1,14 @@
-import { vec3 } from "gl-matrix";
-import { EPSILON, Hit, Ray } from "./Primitive";
+import { vec2, vec3 } from "gl-matrix";
+import { EPSILON, Hit, Interaction, Ray, calculatePoint, createHit, createRay } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
-import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
+import { FORCCE_HIT_ON_VERTEX } from "./config";
+import * as Config from "./config";
+import { GPU } from "gpu.js";
 
 export abstract class Shape {
     computationCount = 0;
     SuccessCount = 0;
-    abstract ComputeIntersection(ray:Ray):Hit|undefined;
+    abstract ComputeIntersection(ray:Ray):Interaction | undefined;
     abstract BondingBox():Box;
 }
 
@@ -15,6 +17,7 @@ export class Sphere implements Shape{
     SuccessCount = 0;
     type="Sphere";
     constructor( ){
+        console.log("Sphere", this)
         
     }
     bbox = new Box([-1,-1,-1], [1,1,1]);
@@ -51,24 +54,18 @@ export class Sphere implements Shape{
             return ;
         }
         
-        if(v1) console.log("Solutions", sols,a,b,c)
         //console.log("Intersection", a,b,c)
         var t1 = Math.min(...posSols);
         //if(t < t1)return;
         var t = t1;
         var p = add2(ray.origin,scale(ray.direction, t));
         //var p = scale(ray.direction, t);
-        var backface = (posSols.length == 1)
+        var backface = (posSols.filter(v=>v>0).length == 1)
         var n= normalize(sub2(p,this.center));
         //var material = obj.material
+        //if(length(ray.origin)<1) console.log("Solutions", {ray, sols,a,b,c})
         
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
+        return Interaction.fromRayAndHit(ray,createHit({p,n,t, backface}))
     }
     
 }
@@ -77,7 +74,7 @@ export class Plane implements Shape{
     computationCount = 0;
     SuccessCount = 0;
     constructor(public normal:vec3, public point:vec3){}
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         var d2 = dot(ray.direction, this.normal)
         //console.log("Plane Intersection", d2, ray.direction, this.normal)
@@ -95,13 +92,7 @@ export class Plane implements Shape{
         var n= this.normal;
         //console.log("Plane", num, d2, t, p, n, backface);
             //console.log("Hit", t,p,n, num, d2,ray.direction, this.point);
-        return <Hit>{
-            material:undefined,
-            t: t,
-            p: p,
-            n: n,
-            backface:backface,
-        }
+        return Interaction.fromRayAndHit(ray, createHit({t,p,n,backface}))
     }
     bbox = new Box(sub2(this.point, [1000,1000,0.001] ), add2(this.point, [1000,1000,0.001]) )
     BondingBox():Box
@@ -118,17 +109,17 @@ export class Area1 implements Shape{
     constructor(){
         //this.plane = null
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         //return ;
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
+        var intr = this.plane.ComputeIntersection(ray);
+        if(intr)
         {
-            var [x,y] = hit.p;
+            var [x,y] = intr.p;
             //if(delta[0]<1)
             if(x>=0 && x<1 && y>=0 && y<1)
             {
-                return hit;
+                return intr;
             }
         }
         return ;
@@ -148,17 +139,17 @@ export class Area implements Shape{
         //console.log("Area", e1, e2, cross(e1,e2));
         this.plane = new Plane(cross(e1,e2),p)
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
         //return ;
         //ray.origin
-        var hit = this.plane.ComputeIntersection(ray);
-        if(hit)
+        var intr = this.plane.ComputeIntersection(ray);
+        if(intr)
         {
             //console.log("Plant Hit", hit);
             //var [x,y] = hit.p;
-            var p = hit.p;
+            var p = intr.p;
             var pn = sub2(p,this.p);
             var x = dot(pn, this.e1);
             var y = dot(pn, this.e2);
@@ -166,7 +157,7 @@ export class Area implements Shape{
             //if(delta[0]<1)
             if(x>=0 && x<1 && y>=0 && y<1)
             {
-                return hit;
+                return intr;
             }
         }
         return ;
@@ -205,7 +196,179 @@ export class Box implements Shape{
             this.bMax[2]+this.bMin[2],
         ],0.5)
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    kernelFunction(){
+        var self = this;
+        const ns:vec3[][] = [
+            [[-1,0,0],[1,0,0]],
+            [[0,-1,0],[0,1,0]],
+            [[0,0,-1],[0,0,1]],
+        ]
+        return processGroup
+        function processGroup (rays:Ray[]):(Interaction[]|Error)[]
+        {
+            const limit = 16000;
+            var n = (rays.length+1)/limit;
+            console.log("rays.length",rays.length, n)
+            var res = Array();
+            for(let i=0;i<n;i++)
+            {
+                res.push(...processUnity(rays.slice(i*limit,(i+1)*limit)));
+            }
+            return res
+        }
+        function processUnity (rays:Ray[])
+        {
+            if(!rays || rays.length==0) return []
+            var kernel1 = tntfBySide().setOutput([3,rays.length])
+            var origins = rays.map(r=>r.direction) as number[][]
+            var dests =  rays.map(r=>r.origin) as number[][];
+            let tns = kernel1(self.bMin, self.bMax, origins, dests ) as  number[][][]
+            //console.log("tns", tns as number[][][])
+            tns = kernel1(self.bMin, self.bMax, origins, dests ) as  number[][][]
+            //console.log("tns", tns as number[][][])
+            var kernel2 = reshape().setOutput([rays.length])
+            let t2 =  kernel2(tns);
+            //return t2;
+            var kernel3 = pftKernel().setOutput([3, rays.length])
+            var res = kernel3(self.bMin, self.bMax, origins, dests, t2 as number[][]) as [number,number,number,number][][]
+            //console.log("T2", res, t2 as number[][])
+            /*
+            var r = new Array(res.length).map(i=>new Array(3))
+            var r2 = res.reduce((p,v,i)=>{
+                console.log("p",p,v,i)
+                p[Math.ceil(i/3)][i%3]=v;
+                return p;
+            },r)
+            console.log("r",r, r2)
+            */
+            return res.map((r,idx)=>processResultArr(r,rays[idx].origin,rays[idx].direction))
+        }
+        function tntfBySide(){
+            const gpu = new GPU();
+            const F = false;
+            const kernel = gpu.createKernel(function(bmin:number[], bmax:number[],origin:number[][],direction:number[][]){
+                var o = origin[this.thread.y][this.thread.x]
+                var d = direction[this.thread.y][this.thread.x]
+                let i1 = (bmin[this.thread.x]-o)/d
+                let i2 = (bmax[this.thread.x]-o)/d
+                let tn = Math.min(i1,i2);
+                let tf = Math.max(i1,i2);
+                return [tn,tf, i1, i2]
+            })
+            return kernel;
+        }
+        function pftKernel(){
+            const gpu = new GPU();
+            const F = false;
+            const kernel = gpu.createKernel(function(bmin:number[], bmax:number[],origin:number[][],direction:number[][], tslist:number[][]){
+                
+                let tn = tslist[this.thread.y][0];
+                let tf = tslist[this.thread.y][1];
+                let i1 = tslist[this.thread.y][2];
+                let i2 = tslist[this.thread.y][2];
+                if(tn>tf){
+                    return [-1000,-1000,-1000,-1000]
+                    //return 0;
+                }
+                
+                var t = tn>0?tn:tf
+                var backface = tn<0?1:0
+                var o = origin[this.thread.y][this.thread.x]
+                var d = direction[this.thread.y][this.thread.x]
+                var p = o+d*t;
+                let r = [0,0,0,0]
+                if(Math.abs(p-bmin[this.thread.x])<0.00001){
+                    //return ns[this.thread.x][0]
+                    return [0,this.thread.x,t,backface]
+                }
+                if(Math.abs(p-bmax[this.thread.x])<0.00001){
+                    //return ns[this.thread.x][0]
+                    return [1,this.thread.x,t, backface]
+                }
+                return [-2,-2,-2,-2];
+            })
+            /*
+                let ns = [
+                    [-1,0,0],
+                    [0,-1,0],
+                    [0,0,-1],
+                    [1,0,0],
+                    [0,1,0],
+                    [0,0,1],
+                ]
+            
+                return [-10,-10,-10];
+                 */
+            return kernel;
+        }
+        function reshape(){
+            /*
+            const kernel = (arr:number[][][])=>{
+                return arr.map(v=>{
+                    let tns = v.map(c=>c[0]);
+                    let tfs = v.map(c=>c[1]);
+                    let tn = Math.max(...tns);
+                    let tf = Math.min(...tfs);
+                    let n = tns.findIndex(v=>v==tn)
+                    let f = tfs.findIndex(v=>v==tf)
+
+                    return [tn,tf]//[n,f]]
+                })
+            }
+
+            return kernel;
+            */
+            const F = false;
+            const gpu = new GPU();
+            const kernel = gpu.createKernel(function(arr:number[][][]){
+                let t1 = arr[this.thread.x][0][0]
+                let t2 = arr[this.thread.x][0][1]
+                let t3 = arr[this.thread.x][1][0]
+                let t4 = arr[this.thread.x][1][1]
+                let t5 = arr[this.thread.x][2][0]
+                let t6 = arr[this.thread.x][2][1]
+                //let tns = Math.max(t1,t2,t3)
+                let tns = Math.max(t1,t3)
+                tns = Math.max(tns, t5)
+                let tfs = Math.min(t2,t4)
+                tfs = Math.max(tfs, t6)
+                //let tfs = Math.min(tnfs[0][1],tnfs[1][1],tnfs[2][1])
+
+                return [tns,tfs]
+            })
+            return kernel;
+        }
+
+        function processResultArr(arr:[number,number,number, number][], origin:vec3, destination:vec3)
+        {
+            var idx = arr.find(v=>(v[0]>=0)||(v[0]<=-900))
+            //console.log("Arr", arr, idx)
+            if(idx)
+                return processResult(idx,origin,destination)
+            else
+            {
+                return Error("Undefined")
+            }
+        }
+        function processResult([minmax,x,t,backface]:[number,number,number, number], origin:vec3, destination:vec3)
+        {
+            if(minmax<-900)
+            {
+                return Error("InvalidResult")
+            }
+            if(minmax<0)
+            {
+                return Error("Undefined")
+            }
+            //console.log(ns,x,minmax, [minmax,x,t,backface])
+            
+            return [
+                createHit({t,p:calculatePoint(origin, destination, t),n:<vec3>ns[x][minmax],backface:backface==1,})
+            ]
+
+        }
+    }
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         this.computationCount++;
         
 
@@ -215,14 +378,22 @@ export class Box implements Shape{
         for(let i=0; i<3;++i){
             let bm = this.bMin[i];
             let bmax = this.bMax[i];
-            let tn = Math.max(bm-ray.origin[i])/ray.direction[i];
-            let tf = Math.min(bmax-ray.origin[i])/ray.direction[i];
-            if(tn >tf)
-            {
-                let tmp = tf;
-                tf = tn;
-                tn = tmp;
-            }
+            let i1 = (bm-ray.origin[i])/ray.direction[i]
+            let i2 = (bmax-ray.origin[i])/ray.direction[i]
+            var vs = [i1,i2]
+            let tn = Math.min(...vs);
+            let tf = Math.max(...vs);
+            /*
+            
+            let i1 = bm-ray.origin[i]/ray.direction[i]
+            let i2 = bmax-ray.origin[i]/ray.direction[i]
+            let tn = Math.min(i1,i2);
+            let tf = Math.max(i1,i2);
+            tn0 = Math.max(tn0, tn);
+            tn1 = Math.min(tn1, tf);
+            h[0] = (tn0==tn)?i:h[0];
+            h[1] = (tn1==tf)?3+i:h[1];
+            */
             tn0 = Math.max(tn0, tn);
             tn1 = Math.min(tn1, tf);
             h[0] = (tn0==tn)?i:h[0];
@@ -264,6 +435,8 @@ export class Box implements Shape{
                 [0,1,0],
                 [0,0,1],
             ]
+            //if(hf<0)
+            //        throw Error("Invalid Normal Option");
             n = ns[hf]
 
             if(true){
@@ -271,39 +444,55 @@ export class Box implements Shape{
                 if(closeTo(p[0],this.bMin[0],0.0001))
                 {
                     n = [-1,0,0];
+                    p[0]=this.bMin[0]
                 }
                 else if(closeTo(p[0],this.bMax[0],0.0001))
                 {
                     n = [1,0,0];
+                    p[0]=this.bMax[0]
                 }
                 else if(closeTo(p[1],this.bMin[1],0.0001))
                 {
                     n = [0,-1,0];
+                    p[1]=this.bMin[1]-0.000000001
                 }
                 else if(closeTo(p[1],this.bMax[1],0.0001))
                 {
-                    n = [0,-1,0];
+                    n = [0,1,0];
+                    p[1]=this.bMax[1]+0.000000001
                 }
                 else if(closeTo(p[2],this.bMin[2],0.0001))
                 {
                     n = [0,0,-1];
+                    p[2]=this.bMin[2]
                 }
                 else if(closeTo(p[2],this.bMax[2],0.0001))
                 {
                     n = [0,0,1];
+                    p[2]=this.bMax[2]
                 }
                 else{
                     throw Error("Invalid Normal Option");
                 }
             }
             this.SuccessCount++;
+            
             //console.log("CloseTo",p, this.bMin, this.bMax, n )
-            return <Hit>{
-                t:t,
-                p:p,
-                backface: tmin < 0,
-                n:n,
+            return Interaction.fromRayAndHit(ray, createHit({p,n,t, backface: tmin <= 0,},
+            {
+                context:{
+                    h,
+                    n,
+                    p,
+                    ray,
+                    tmin,
+                    tmax,
+                    cn:ns[hf],
+                    bmin:this.bMin,
+                    bmax:this.bMax
+                }
             }
+            ))
             //return
         }
         //console.log("Area", this.e1, this.e2, cross(this.e1,this.e2));
@@ -336,7 +525,7 @@ export class Vertex implements Shape{
         this.normal = normalize(this.cross);
         this.area = length(this.cross)/2
     }
-    ComputeIntersection(ray: Ray): Hit | undefined {
+    ComputeIntersection(ray: Ray): Interaction | undefined {
         let d = ray.direction;
         const denominador = triple(d,this.e2,this.e1);
         if(Math.abs(denominador)<=EPSILON){
@@ -359,14 +548,10 @@ export class Vertex implements Shape{
         //let p = add2(scale(this.e1,u),scale(this.e2,v))
         let p = add2(ray.origin, scale(d, t))
         
-        return <Hit>{
-            backface,
-            n,
-            t,
-            p,
+        return Interaction.fromRayAndHit(ray,createHit({p,n,t, backface},{
             forceOnVertex:FORCCE_HIT_ON_VERTEX,
             uv:[u,v]
-        }
+        }))
         
     }
     BondingBox(): Box {

@@ -36,3 +36,7 @@ export class Sampler{
         return Math.random();
     }
 }
+
+
+
+export interface Sample{s:vec3,pdf:number, n:vec3, wi:vec3}

@@ -1,17 +1,29 @@
 import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
-import { add2, createMat4, inverse, normalize, setPixel, sub2, toVec3, toVec4, verbose,  } from "./utils";
+import { add2, createMat4, inverse, normalize, saveCanvasAs, setPixel, sub2, toVec3, toVec4, verbose,  } from "./utils";
 
-import { RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT } from "./config";
+import { CONFIG_NAME, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, SAVE_FILE } from "./config";
 
-import { Ray } from "./Primitive";
+import { Ray, RayGenerator } from "./Primitive";
 import { Sampler } from "./Sampler";
 
 
 export class Film{
-    GetSampleCount()
+    _sampleCount:number = SAMPLE_COUNT;
+    set sampleCount(v:number){
+        this._sampleCount = v;
+    }
+    get sampleCount()
     {
-        return SAMPLE_COUNT;
+        return this._sampleCount;
+    }
+    _currentCount:number=0;
+    set currentCount(v:number){
+        this._currentCount = v;
+    }
+    get currentCount()
+    {
+        return this._currentCount;
     }
     GetRandom(){
         return RANDOM_SAMPLE? Math.random() : 0.5;
@@ -35,20 +47,27 @@ export class Film{
         //return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
         return [Math.floor(i *this.W), Math.floor(j*this.H)];
     }
-    public static Make(resolution: vec2, value:number, ctx?:CanvasRenderingContext2D)
+    public static Make(resolution: vec2, value:number, ctx:CanvasRenderingContext2D[])
     {
-        return new Film(resolution, new Array(resolution[0]).fill([]).map(() => new Array(resolution[1]).fill([]).map(()=>[value,value,value])), ctx);
+        var dataArray = new Array(ctx.length).fill([]).map(_=>new Array(resolution[0]).fill([]).map(() => new Array(resolution[1]).fill([]).map(()=><vec3>[value,value,value])))
+        return new Film(resolution, dataArray, ctx);
         //var a:vec2 = []
     }
+    get DataLength(){
+        return this.Data.length;
+    }
+    constructor(public Resolution:vec2, public Data:vec3[][][], public Context:CanvasRenderingContext2D[] ){}
 
-    constructor(public Resolution:vec2, public Data:vec3[][], public Context?:CanvasRenderingContext2D ){}
+    GetPixelValue(i_idx:number,j:number,idx:number = 0){
+        return this.Data[idx][i_idx][j]
 
-    SetPixelValue(i_idx:number,j:number,value:vec3){
+    }
+    SetPixelValue(i_idx:number,j:number,value:vec3, idx:number = 0){
         const i2 = i_idx;
         //console.log(i, j, value);
         //console.log("Data", i_idx, j, this.Data)
         const v = 155 + (i_idx/this.W) * 100;
-        this.Data[i_idx][j]=value;
+        this.Data[idx][i_idx][j]=value;
         //console.log("Data", i_idx, j, this.Data[i2][j])
     }
     get H(){
@@ -58,14 +77,28 @@ export class Film{
         return this.Resolution[0];
     }
     
-    RenderImage(Context:CanvasRenderingContext2D){
-        Context = Context ?? this.Context;
+    RenderImage(idx:number=-1){
+        if(idx == -1)
+        {
+            let res = this.Context.map((_,i)=>i).map(index => Film.RenderImageInContextS(this.Context[index], this.Data[index], this));
+            console.log("SampleCount", this, this.sampleCount)
+            if(SAVE_FILE)this.Context.forEach((c,idx2)=>saveCanvasAs(c.canvas,`Canvas_${idx2}_${this.Resolution[0]}x${this.Resolution[1]}_${this.sampleCount}_${CONFIG_NAME}.png`))
+            return res;
+        }
+        return Film.RenderImageInContextS(this.Context[idx], this.Data[idx], this);
+    }
+    RenderImageInContext(Context:CanvasRenderingContext2D|undefined){
+        let idx = 0;
+        Context = Context ?? this.Context[idx];
+        return Film.RenderImageInContextS(Context, this.Data[idx], this);
+    }
+    static RenderImageInContextS(Context:CanvasRenderingContext2D|undefined, Data:vec3[][],res:{W:number, H:number}){
         if(Context){
-            console.log("Data", this.Data)
-            const myImageData = Context!.createImageData(this.W*REPEAT_PX, this.H*REPEAT_PX);
-            this.Data.forEach((l,idx)=>{
+            console.log("Data", Data)
+            const myImageData = Context!.createImageData(res.W*REPEAT_PX, res.H*REPEAT_PX);
+            Data.forEach((l,idx)=>{
                 l.forEach((c,jdx)=>{
-                    setPixel(myImageData, idx,jdx,this.W, this.H, c[0]*255, c[1]*255,c[2]*255,255 );
+                    setPixel(myImageData, idx,jdx,res.W, res.H, c[0]*255, c[1]*255,c[2]*255,255 );
                 })
             })
             //console.log("myImageData", myImageData)
@@ -78,7 +111,7 @@ export class Film{
     }
 }
 
-export class Camera{
+export class Camera implements RayGenerator{
     toWorldMatric:GLMat.mat4 = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     constructor(private _o:vec3, public u:vec3, public v: vec3, public w: vec3, private _angle:number, public distance:number, public ratio:number)
     {
@@ -94,6 +127,7 @@ export class Camera{
     }
     set origin(value:vec3)
     {
+        console.log("Camera Set Origin", this);
         this._o = value;
         this.refresh();
     }
@@ -175,7 +209,8 @@ export class Camera{
         if(verbose)console.log("Origin",o)
         var t = this.ToWorldPosition(p);
         if(verbose)console.log("point",t)
-        return {origin:o,direction: normalize(sub2(t, o)), camera:true}
+
+        return {origin:o,direction: normalize(sub2(t, o)), camera:true, generator:this}
     }
 
 }

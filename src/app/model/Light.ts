@@ -3,13 +3,17 @@ import { Scene } from "./Scene";
 import { distance, normalize, add2, add3, sub2, dot, minus, cross, length } from "./utils";
 import * as utils from "./utils";
 import { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT_OCL_MAT_CODE, LIGHT_FACTOR } from "./config";
-import { Hit, createRay } from "./Primitive";
+import { EntityInstance, Hit, Interaction, createRay } from "./Primitive";
+import { Sample } from "./Sampler";
 
+export type LightInstanceSample = {light: Light,pdf:number}
+export type LightPointSample = {s:vec3,pdf:number}
+export interface LightSample extends Sample { light: LightInstanceSample,  point:LightPointSample, entity:EntityInstance }
 export abstract class Light{
     public Intensidade: vec3 = [1,1,1];
     public Potencia: vec3 = [1,1,1];
     abstract get SAMPLE_COUNT():number;
-    abstract getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number};
+    abstract getSamplePoint():LightPointSample;
     Radiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number } {
         const res = {li:vec3.create(),l:vec3.create()};
         for(var i = 0; i< this.SAMPLE_COUNT; ++i)
@@ -35,11 +39,13 @@ export abstract class Light{
             }
             let ray = createRay(hit2.p, l)
             var hitA = scene.ComputeIntersection(ray);
-            hit2 = hitA ? hitA[0] : undefined;
+            hit2 = hitA ? hitA[0].hit : undefined;
             //console.log("ReprocessRefraction out", hit2)
         }
         return {hit:hit2, I};
     }
+
+    abstract getN(sample:LightPointSample, interaction?:Interaction):vec3
 }
 export class PontualLight extends Light{
     type:"PontualLight";
@@ -47,8 +53,8 @@ export class PontualLight extends Light{
         return 1;
     }
     
-    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
-        return { s: this.Position, ns: sub2(p, this.Position), pdf: 1 };
+    getSamplePoint():LightPointSample {
+        return { s: this.Position, pdf: 1 };
     }
     SampleRadiance(scene: Scene, p: vec3, n: vec3): { li: vec3; l: vec3; hitCode?:number} {
 
@@ -59,7 +65,7 @@ export class PontualLight extends Light{
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hitA = scene.ComputeIntersection(ray);
-        var hit2 = hitA ? hitA[0] : undefined;
+        var hit2 = hitA ? hitA[0].hit : undefined;
 
         var hitCode = -1;
         if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0   )
@@ -95,6 +101,10 @@ export class PontualLight extends Light{
         this.Intensidade = Intensidade;
         this.Potencia = utils.scale(this.Intensidade, 2*Math.PI)
     }
+    getN(sample:LightPointSample,interaction?:Interaction)
+    {
+        return normalize(sub2(interaction?.p??[1,0,0], this.Position))
+    }
 
 }
 export class AreaLight extends Light{
@@ -111,16 +121,21 @@ export class AreaLight extends Light{
         this.AreaPart = this.Area/this.SAMPLE_COUNT;
     }
     
-    getSamplePoint(p: vec3):{s:vec3,ns:vec3,pdf:number} {
+    getSamplePoint():LightPointSample {
     
 
         var Area = this.Area;
         var e1 = utils.scale(this.ArestaI, Math.random())
         var e2 = utils.scale(this.Arestaj, Math.random())
 
-        return { s: add3(this.Position, e1, e2), ns: this.Normal, pdf: 1 / Area };
+        return { s: add3(this.Position, e1, e2), pdf: 1 / Area };
 
 
+    }
+    
+    getN(sample:LightPointSample)
+    {
+        return this.Normal
     }
     SampleRadiance(scene: Scene, p: vec3, n: vec3, i:number): { li: vec3; l: vec3; } {
         var ni = Math.ceil(i/this.sqr_SAMPLE_COUNT);
@@ -133,7 +148,7 @@ export class AreaLight extends Light{
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hitA = scene.ComputeIntersection(ray);
-        var hit = hitA ? hitA[0] : undefined;
+        var hit = hitA ? hitA[0].hit : undefined;
         //if(v2 || verbose2) console.log("Hit2", hit)
         //console.log("Radiance", ray);
         //console.log("Radiance", ray, hit);

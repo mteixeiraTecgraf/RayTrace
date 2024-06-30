@@ -1,10 +1,10 @@
 import { mat4, vec3 } from "gl-matrix";
 import { createMat4, cross, getTranslation, identity, inverse, mulMat, scaleMat, sub2, toVec3, toVec4, transpose } from "./utils";
-import { Hit, Ray } from "./Primitive";
+import { Hit, Ray, createHit } from "./Primitive";
 import * as GLMat from  "gl-matrix";
 import * as utils from "./utils";
 
-type MatrixPipeAction = (mat:mat4)=>mat4;
+export type MatrixPipeAction = (mat:mat4)=>mat4;
 
 export function translate(vec:vec3):MatrixPipeAction{
     return function(mat:mat4){
@@ -19,6 +19,18 @@ export function scale(vec:vec3):MatrixPipeAction{
 export function rotate(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
     return function(mat:mat4){
         return utils.rotate(mat, n, axis);
+    }
+}
+export function rotateVec(vec:vec3):MatrixPipeAction{
+    return function(mat:mat4){
+        if(vec[0]!=0)
+            return utils.rotate(mat, vec[0],"x")
+        if(vec[1]!=0)
+            return utils.rotate(mat, vec[1],"y")
+        if(vec[2]!=0)
+            return utils.rotate(mat, vec[2],"z")
+        return utils.rotate(mat, 0,'x')
+        
     }
 }
 export class Transform{
@@ -36,7 +48,7 @@ export class Transform{
     }
     toLocalRay(ray:Ray):Ray
     {
-        return {...ray, origin:this.toLocal(ray.origin), direction:(sub2(this.toLocal(ray.direction),getTranslation(this.inverse)))}
+        return {...ray, origin:this.toLocal(ray.origin), direction:((sub2(this.toLocal(ray.direction),getTranslation(this.inverse))))}
         //return {...ray, origin:this.toLocal(ray.origin)}
     }
     toGlobalRay(ray:Ray):Ray
@@ -49,14 +61,11 @@ export class Transform{
     {
         if(hit)
         {
-
-            return <Hit>{
+            return createHit({
                 ... hit,
                 p:this.toGlobal(hit.p),
-                n:this.toGlobalT(hit.n),
-                //n:normalize(hit.n),
-                
-            }
+                n:utils.normalize(this.toGlobalT(hit.n))
+            })
         }
         return undefined;
     }
@@ -80,6 +89,7 @@ export class Transform{
         var scale = createMat4([sx,0,0], [0, sy,0], [0,0,sz], [0,0,0])
         var transl = createMat4([1,0,0], [0, 1,0], [0,0,1], translation)
         var mat = mulMat(transl,scale)
+        console.log("Matrix X", {translation,sx, sy,sz, scale, transl, mat});
         return new Transform(mat);
     }
     static fromVec(translation:vec3=[0,0,0], v1:vec3, v2:vec3)

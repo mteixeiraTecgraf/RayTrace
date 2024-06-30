@@ -1,0 +1,235 @@
+CONFIG:
+  scene_name: "Example Scene"
+  background_color: "#000000"
+  render_quality: "high"
+
+SCENE:
+  CAMERA:
+    ACTIONS:
+    - ADD_ORIGIN: 
+        x: 0
+        y: 0
+        z: 0
+    - ROTATE_ORIGIN_Z: 30
+    - ROTATE_Z: 30
+    - ROTATE_ORIGIN_X: -15
+    - ROTATE_X: -15
+    - ADD_ORIGIN: 
+        x: 0
+        y: -1.5
+        z: 1.5
+  entities:
+
+    - NAME: "Area Light"
+      LIGHT:
+        TYPE: "Area"
+        POSITION:
+          x: -1.2
+          y: 0.8
+          z: 2.9
+        ARESTA_I:
+          x: 0.5
+          y: 0
+          z: 0
+        ARESTA_J:
+          x: 0
+          y: -0.5
+          z: 0
+        INTENSIDADE:
+          x: 16
+          y: 16
+          z: 16
+    - NAME: "Area Light 2"
+      LIGHT:
+        TYPE: "Area"
+        POSITION:
+          x: 1.0
+          y: 0.8
+          z: 2.9
+        ARESTA_I:
+          x: 0.5
+          y: 0
+          z: 0
+        ARESTA_J:
+          x: 0
+          y: -0.5
+          z: 0
+        INTENSIDADE:
+          x: 16
+          y: 16
+          z: 16
+    - NAME: "Area Light 3"
+      LIGHT:
+        TYPE: "Area"
+        POSITION:
+          x: -0.2
+          y: -1.0
+          z: 1.0
+        ARESTA_I:
+          x: 0
+          y: 0
+          z: 0.5
+        ARESTA_J:
+          x: 0.5
+          y: 0
+          z: 0
+        INTENSIDADE:
+          x: 16
+          y: 16
+          z: 16
+    - NAME: "Box1"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#E6E6E6"
+        shiness: 20
+        name: box1
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 0.6
+            y: 0.6
+            z: 0.6
+        - ROTATE:
+            x: 0
+            y: 0
+            z: -50
+        - TRANSLATE:
+            x: 0.3
+            y: 1.4
+            z: 0
+    - NAME: "Box1"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#E6E6E6"
+        shiness: 20
+        name: box1
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 1
+            y: 1
+            z: 1.8
+        - ROTATE:
+            x: 0
+            y: 0
+            z: 50
+        - TRANSLATE:
+            x: -1.1
+            y: 0.5
+            z: 0
+    - NAME: "Ceil"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#666666"
+        shiness: 10
+        name: Teto
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 8
+            y: 8
+            z: 0.1
+        - TRANSLATE:
+            x: -4
+            y: -4
+            z: 3
+    - NAME: "Back"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#CCCCCC"
+        shiness: 20
+        name: Fundo
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 8
+            y: 0.1
+            z: 8.2
+        - TRANSLATE:
+            x: -4
+            y: 3
+            z: -4.1
+    - NAME: "Front"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#CCCCCC"
+        shiness: 20
+        name: Frente
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 8
+            y: 0.1
+            z: 8.2
+        - TRANSLATE:
+            x: -4
+            y: -1.6
+            z: -4.1
+    - NAME: "LateralReflective TD"
+      MATERIAL:
+        TYPE: "PhongMetal"
+        diffuse_color: "#FF0000"
+        speccular_color: "#FF4C4C"
+        shiness: 10
+        r0: 0.6
+        name: Direita Vermelha
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 0.1
+            y: 8
+            z: 8
+        - TRANSLATE:
+            x: 2
+            y: -4
+            z: -4
+    - NAME: "Left"
+      MATERIAL:
+        TYPE: "PhongMetal"
+        diffuse_color: "#00FF66"
+        speccular_color: "#000000"
+        shiness: 1
+        r0: 0.6
+        name: Esquerda Verde Fosca
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 0.1
+            y: 8
+            z: 8
+        - TRANSLATE:
+            x: -2.1
+            y: -4
+            z: -4
+    - NAME: "Floor"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#CCCCCC"
+        shiness: 20
+        name: Teto
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - SCALE:
+            x: 8
+            y: 8
+            z: 0.1
+        - TRANSLATE:
+            x: -4
+            y: -4
+            z: -0.1
+
+

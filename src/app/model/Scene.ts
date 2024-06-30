@@ -2,15 +2,24 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, calculateHitCode, createMat4, cross, debugSample, debugSample2, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
 import * as utils from "./utils";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, LIGHT_FACTOR, LIMITS, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import * as Config from "./config";
 import { Material, PhongMaterial } from "./Material";
-import { AreaLight, Light, PontualLight } from "./Light";
+import { AreaLight, Light, LightSample, PontualLight } from "./Light";
 import { Transform, scale } from "./Transform";
-import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray, createRay, LightInstance, EPSILON } from "./Primitive";
+import { Hit, EntityInstance, Ray, createPrimitive, createTPrimitive, Interaction, EPSILON } from "./Primitive";
 import { IntersectionTester } from "./Tester";
 import { Camera, Film } from "./Film";
 import { interval } from "rxjs";
+import { GPU } from "gpu.js";
+import { Semaphore } from "./Semaphore";
+import { Sampler } from "./Sampler";
 
+export type CancelAction = ()=>boolean
+export type ProgressAction = (i:number,total:number)=>void
+export type RenderOptions = { progress: ProgressAction, cancel:CancelAction }
+export var DEFAULTPROGRESS: ProgressAction = ()=>{}
+export const DEFAULT_RENDER_OPTIONS = { progress: DEFAULTPROGRESS, cancel: ()=>false }
 
 export class Scene {
     ReportComputations() {
@@ -21,7 +30,7 @@ export class Scene {
         }
     }
 
-    constructor(private Film: Film, public camera: Camera, public ambientLight: vec3) { }
+    constructor(public Film: Film, public camera: Camera, public ambientLight: vec3) { }
     get W() { return this.Film.W }
     get H() { return this.Film.H }
     sample: vec2 = [0, 0,]
@@ -31,8 +40,15 @@ export class Scene {
     prepareScene() {
         this.tester.generateStructure();
     }
-    Render(Context: CanvasRenderingContext2D, { progress }: { progress: ProgressAction } = { progress: DEFAULTPROGRESS }) {
-        return this.RenderDefault(Context, { progress });
+    Render(options:RenderOptions = DEFAULT_RENDER_OPTIONS) {
+        if(PATH_PIPE)
+        {
+            return this.pipelineRender(options);
+        }
+        else
+        {
+            return this.RenderDefault(options);
+        }
         //return this.RenderRandom(Context, {progress});
     }
 
@@ -50,7 +66,7 @@ export class Scene {
         progress(this.W, this.W);
         //v = this.W;
         //s.unsubscribe();
-        this.Film.RenderImage(Context);
+        this.Film.RenderImageInContext(Context);
 
         function printPoint(i: number, j: number, c: vec3) {
             var n = 2;
@@ -65,11 +81,15 @@ export class Scene {
             }
         }
     }
-    RenderDefault(Context: CanvasRenderingContext2D, { progress }: { progress: ProgressAction } = { progress: DEFAULTPROGRESS }) {
+    RenderDefault(options:RenderOptions = DEFAULT_RENDER_OPTIONS) {
         const film = this.Film
-        const count = film.GetSampleCount();
+        const count = film.sampleCount;
         //return;
 
+        if(options.cancel())
+        {
+            throw new Error("Cancelation Requested");
+        }
 
         /*
         let v = 0;
@@ -80,14 +100,19 @@ export class Scene {
         })
         //return;
         */
+       var rays = []
         for (let i = 0; i < this.W; i++) {
             //v = i;
-            progress(i, this.W);
-
+            options.progress(i, this.W);
+            if(options.cancel())    
+                throw new Error("Cancelation Requested");
+            
             //continue;
             for (let j = 0; j < this.H; j++) {
-                var c: vec3 = [0, 0, 0]
-                for (let s = 0; s < count; s++) {
+                let cs: vec3[] = Array(film.DataLength).fill([0,0,0]).map((_,idx)=>utils.scale(film.GetPixelValue(i,j,idx),film.currentCount));
+                for (let s = film.currentCount; s < count; s++) {
+                    //film.currentCount =
+                    //if(film.currentCount>0)console.log("CS3", {i,j})
                     //1
                     var sample: vec2 = film.GetSample(i, j);
                     /*
@@ -105,26 +130,47 @@ export class Scene {
 
                     //2
                     var ray: Ray = this.camera.GenerateRay(sample);
+                    rays.push(ray);
                     (<any>ray)['sample'] = sample;
                     if (verbose2) console.log("Ray", i, j, ray)
 
                     //3
                     if(PATH_TRACE)
-                        c = add2(c, this.TracePath(ray, DMAX));
+                    {
+                        let testpx = false,ci=7*2,cj=15*2
+                        if(testpx&&i==ci&&j==cj) setVerbose(true)
+                        var pathRes = this.TracePath(ray, DMAX)
+                        setVerbose(false)
+                        //console.log(pathRes)
+                        if(testpx&&i==ci&&j==cj)console.log("MARK2::CS",{cs:cs.map(v=>{return <vec3>{...v}}), count:film.currentCount, sc:film.sampleCount});
+                        cs[0] = add2(cs[0], pathRes.L);
+                        if(testpx&&i==ci&&j==cj)console.log("MARK2::CS2",{cs:cs.map(v=>{return <vec3>{...v}}), count:film.currentCount, sc:film.sampleCount, L:pathRes.L});
+                        for(let q=1;q<cs.length;q++)
+                        {
+                            //cs[q]??=[0,0,0]
+                            cs[q] = add2(cs[q], pathRes.Lp[q-1]??[0,0,0])
+                        } 
+                    }
                     else
-                        c = add2(c,this.TraceRay(ray));
-                    if (verbose2) console.log("Pixel", i, j, c)
+                        cs[0] = add2(cs[0],this.TraceRay(ray));
+                    if (verbose2) console.log("Pixel", i, j, cs[0])
                 }
-                film.SetPixelValue(i, j, utils.scale(c, 1 / count));
+                //if(j==150)cs[0]=[0,0,1]
+                cs.forEach((c,i2)=>{film.SetPixelValue(i, j, utils.scale(c, 1 / count),i2);})
 
             }
         }
-        progress(this.W, this.W);
+        console.log("Rays", rays);
+        options.progress(this.W, this.W);
         //v = this.W;
         //s.unsubscribe();
-        this.Film.RenderImage(Context);
+        
+        
+        this.Film.RenderImage();
 
     }
+
+
     recursionCount = 0;
     TraceRay(ray: Ray): vec3 {
         if (this.recursionCount >= TRACE_RAY_RECURSION_MAX) return [0, 0, 0];
@@ -140,7 +186,8 @@ export class Scene {
     _TraceRay(ray: Ray): vec3 {
         //setVerbose(debugSample(this));
         var hitA = this.ComputeIntersection(ray);
-        var hit = hitA ? hitA[0] : undefined;
+        var interaction = hitA ? hitA[0] : undefined;
+        var hit = interaction?.hit
         
         //setVerbose(false);
         if (hit) {
@@ -164,7 +211,7 @@ export class Scene {
                 return c;
             }
             else if (hit.material) {
-                if (this.beforeMatEvalCheck(hit)) return this.checkResult;
+                if (this.beforeMatEvalCheck(interaction)) return this.checkResult;
 
                 if (verbose3) console.log("Hit Material", hit);
                 var c = hit.material.Eval(this, hit, ray.origin);
@@ -185,28 +232,52 @@ export class Scene {
         //return this.temp(ray);
     }
 
+    sampler:Sampler = new Sampler();
     TracePath(ray: Ray, dMax: number) {
         //dMax = 2;
         let L = utils.VECS.ZERO;
+        let Lp:vec3[] = [];
+        let Hits:Interaction[] = [];
+        let Rays:Ray[] = [];
         let beta = utils.VECS.ONE;
 
-        var previousPDF = 0;
-        for (let i = 0; i < dMax; ++i) {
+        let q = 0.5;
+        let previousPDF = 0;
+        let specular = false;
+        for ( let i = 0; i<2;i++) {
+            
             let L_Step = utils.VECS.ZERO;
-            if(debugSample(this))console.log("@MARK2::",this.sample,i, dMax,FORCCE_RAY_HIT_MAT_CODE,i)
-            let hitA = this.ComputeIntersection(ray);
-            var hit = hitA ? hitA[0] : undefined;
-            if (this.beforeMatEvalCheck(hit, i)) return this.checkResult;
-            if (!hit) {
+            if(debugSample(this))console.log("TracePath",this.sample,i, dMax,FORCCE_RAY_HIT_MAT_CODE,i)
+            Rays.push(ray);
+            let interactions = this.ComputeIntersection(ray, true, !specular);
+            setVerbose(false);
+            //if(i==0)return L;
+            var interaction = interactions ? interactions[0] : undefined;
+            if (this.beforeMatEvalCheck(interaction, i)) return {L:this.checkResult,Lp};
+            if (!interaction) {
+                //Lp.push(utils.VecAbs(ray.origin));
+                if(true)Lp.push(utils.COLOR.BLUE);
+                if(FORCE_END_COLORS)Lp.push(utils.VecMap(ray.origin,[-2,-0,0],[2,2,3]));
+                if(FORCE_END_COLORS)if(i==2&&ray.origin[0]>2)console.log("No Interaction", {ray,Lp, Hits,Rays})
+                if(FORCE_END_COLORS)Lp.push(utils.VecMap(ray.direction, [-1,-1,-1],[1,1,1]));
+                //{L:utils.VecMap(p,[-2,-0,0],[2,2,3]),Lp}
+                //Lp.push(utils.scale(utils.VECS.ONE, ray.origin[0]/2));
                 break;
             }
-
-            let light = hit.light;
+            let hit = interaction.hit;
+            let light = interaction.hit.light;
+            //if(hit&&i==0)Lp.push(utils.VecMap(hit.p,[-2,-0,0],[2,2,3]))
+            Hits.push(interaction);
             if (light) {
-                if (DFIX<=0 && i == 0) {
-                    return light.Potencia;
+                if (DFIX<=0 && (i == 0 || specular)) {
+                    Lp.push(light.Potencia);
+                    if(false)Lp.push(utils.COLOR.BLACK);
+                    //if(i > 0) console.log("Luz")
+                    return {L: light.Potencia, Lp};
                 }
                 else {
+                    if(FORCE_END_COLORS)Lp.push(utils.COLOR.RED);
+
                     break;
                 }
             }
@@ -214,81 +285,466 @@ export class Scene {
                 //return L;
                 var c = false
                 if (c)
-                    return L;
-                let mat = hit.material!;
-                let p = hit.p;
-                let n = normalize(hit.n)
-                
-                if(FORCCE_NORMAL)
-                {
-                    var r = n.map(v=>Math.abs(v)) as vec3;
-                    return r;
-                }
+                    return {L, Lp};
+                let mat = interaction.primitive.material!;
+                let p = interaction.p;
+                let n = normalize(interaction.n)
+
+                //if (this.afterMatEvalCheck(hit, ray)) return this.checkResult;
                 //L = [0,0,0];
                 var N = 1;
-                for(var ns = 0 ; ns<N;ns++){
+                //for(var ns = 0 ; ns<N;ns++){
 
-                    let Le = this.getLightRadiance(p, n)
+                    //let Le = this.getLightRadiance(hit, ray, mat)
+                    var lightSamples = this.getLightSamples()
+                    //console.log(lightSamples);
+                    var Le = this.getLightRadianceFromSamples(lightSamples, interaction,ray, mat);
+                    if(this.hasResult)
+                    {
+                        L= this.checkResult;
+                        return {L, Lp}
+                    }
+                
+
+                    var sp = interaction.ComputeScatteringFunctions(ray);
+
+                    let wo = normalize(sub2(ray.origin,p))
+                    var wol = normalize(this.GlobalToNormal(n,wo));
+                    var sample = interaction.BSDF.sample(wol, [0,0,1])
+                    var pdf = mat.GetPDF(sample)
+                    previousPDF = pdf;
+                    var wi = normalize(this.NormalToGlobal(n, sample.s))
+                    //if(mat.name=="latRed")  console.log("wi,n",{wi,n, ref:reflect(wi,n), sample, wo, wol}) 
+
+                    
+                    specular = sp.specular;
+                    let cosFact = interaction.BSDF.cosFact(wi);
+
+
+                    //var calcBDRF = mat.BDRF(hit, ray.origin);
+                    var calcBDRF = interaction.BSDF.BRDF(wi,wo, hit);
+                    //if(hit.material?.name== "Sphere"&& hit.backface) console.log("HitSphere", {interaction,sp, calcBDRF, beta, Le, i})
+                    if(!specular)
+                    {
+                        L_Step = add2(L_Step, mul(mul(Le, calcBDRF), beta))
+                    }
+                    if(false) L_Step = utils.VECS.ONE
+                    if(false) L_Step = utils.VecAbs(normalize(wi))
+                    if(false) L_Step = utils.VecAbs(utils.scale(utils.VECS.ONE,p[1]/4))
+                    if(false) L_Step = utils.VecAbs(beta)
+                    if(false) L_Step = hit.backface?[1,0,0]:[0,1,0]
+                    if(false) L_Step = specular?[1,0,0]:[0,1,0]
+
+
+                    
+                    //TEMP TEST RETURNS
+                    {
+                      
+                        if(RENDER_PDF && (i == DFIX))
+                        {
+                            if(previousPDF>0.6)
+                            {
+                                L= <vec3>[previousPDF,0,0];
+                                return {L, Lp}
+                            }
+                            if(previousPDF>0.3)
+                            {
+                                L= <vec3>[0,previousPDF+0.3,0];
+                                return {L, Lp}
+                            }
+                            L= <vec3>[0,0,previousPDF+0.6];
+                            return {L, Lp}
+                        }
+                        if(RENDER_BETA_LEN && (i == DFIX))
+                        {
+                            const f = 1;
+                            //return utils.scale(beta,1/f)
+                            const subv = 1//3.5//1.9;
+                            L= utils.sub2(beta,utils.scale(utils.VECS.ONE,subv))
+                            return {L, Lp}
+                        }
+                        if(i==DFIX)
+                        {
+                            L= L_Step;
+                            return {L, Lp}
+                        }
+                        
+                    }
+
+                    if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, calcBDRF));
+                    L = DFIX<0 ? add2(L,L_Step):[0,0,0];
+                    {
+                        if (i==DFIX && debugSample(this)) {
+                            console.log("Trace", Le, L)
+                            this.checkResult = [0, 0, 1];
+                            L= <vec3>[0,0,1];
+                            return {L, Lp}
+                        }
+                    
+                        //return sub2(sample.s.map(Math.abs) as vec3, [0,0,0]);
+                        //return utils.scale(utils.VECS.ONE,dot(sample.s,[0,0,1])>0.5?0:dot(sample.s,[0,0,1]))
+                        if(debugSample(this))console.log("wi gen",wol, n,sample, wi,beta)//    , this.GlobalToNormal([-1,0,0],[0,1,0]))
+                        //var r = sample.s.map(v=>Math.abs(v)) as vec3;
+                        //return r;
+                        
+                    }
+                    beta = mul(beta, utils.scale(calcBDRF, Math.max(0, cosFact / pdf)))
+
+                    //Code for Russian Roulette Calculation
+                    let prob1 = Math.max(...beta);
+                    let prob =prob1
+                    //if(hit.material?.name== "Sphere"&&i==1 && hit.backface) console.log("HitSphere2", {interaction,sp, calcBDRF, beta, Le})
+
+                    if(false) L_Step = prob>0.5?[1,0,0]:[0,1,0];
+                    //prob /= i>3?2:prob;
+                    //prob = i>2?prob:1
+                    if(!specular&& (this.sampler.get1D() < prob) && !NO_BETA_DECAY)
+                    {
+
+                        //Lp.push(utils.COLOR.RED);
+                        if(false) Lp.push(Math.random()<0.4/(10-i)?utils.COLOR.RED:utils.COLOR.RED)
+                        if(false) Lp.push(utils.VecAbs(beta))
+                        if(false) Lp.push(utils.VecAbs(calcBDRF))
+                        if(false) Lp.push(utils.VECS.create(pdf))
+                        if(false) Lp.push(utils.VECS.create(cosFact))
+                        break;
+                    }
+                    //if(i>7) break;
+                    if(prob<EPSILON)
+                    {
+                        if(false) Lp.push(utils.COLOR.GREEN)
+                        if(false) Lp.push(utils.VecAbs(beta))
+                        if(false) Lp.push(utils.VecAbs(calcBDRF))
+                        if(false) Lp.push(utils.VECS.create(pdf))
+                        if(false) Lp.push(utils.VECS.create(cosFact))
+                        //Lp.push(utils.COLOR.BLUE);
+                        break;
+                    }
+                    beta = utils.scale(beta,1/prob);
+                    if(NO_BETA_DECAY) beta = utils.VECS.ONE;
+                    ray = interaction.SpawnRayToDirection(wi);
+                    if(false) L_Step = utils.VecAbs(normalize(ray.direction))
+                    if(false) L_Step = utils.COLOR.RED
+                    Lp.push(L_Step)
+                    //return {L:utils.scale(utils.VECS.ONE,p[0]+2), Lp}
+                    //return {L:utils.VecMap(p,[-2,-0,0],[2,2,3]),Lp}
+
+                //}
+            }
+        }
+        return {L, Lp};
+    }
+
+    testKernel(){
+        const gpu = new GPU();
+        const F = false;
+        var c = function(v:boolean){return v?1:0};
+        const kernel = gpu.createKernel(function(v) {
+            const i = Math.random()>0.5;
+            if (i) return 1;
+            return 0;
+          }).setOutput([100]);
+
+        const kernel2 = gpu.createKernel(c).setOutput([100]);
+
+          
+        var out = kernel2(true);
+        console.log("Kernel", out)
+    }
+    async pipelineRender(options:RenderOptions = DEFAULT_RENDER_OPTIONS)
+    {
+        console.log("PreKernel")
+        this.testKernel()
+        console.log("PostKernel")
+        
+        const film = this.Film
+        const count = film.sampleCount
+        //return;
+        this.initProm()
+       const samples:vec2[] = []
+        for (let i = 0; i < this.W; i++) {
+            //v = i;
+
+            //continue;
+            for (let j = 0; j < this.H; j++) {
+                var c: vec3 = [0, 0, 0]
+                for (let s = 0; s < count; s++) {
+                    //1
+                    var sample: vec2 = film.GetSample(i, j);
+                    samples.push(sample);
+                }
+            }
+        }
+        console.log("SamplesGenerated", samples.length)
+        // var rays = samples.map(
+        //     sample=>this.camera.GenerateRay(sample)
+        // )
+        //this.ComputeIntersectionList(rays);
+        //return;
+        var out = await this.pipelineRenderProcessor(samples,
+            
+            //Ray Generation Function
+            (s:number, context:PipelineContext)=>{context.sample=samples[s];return this.camera.GenerateRay(context.sample)},
+            
+            //Intersection Callback
+            async (ray:Ray, context:PipelineContext)=>{
+                //console.log("Intersection");
+                let cxt = Config.DEBUG_CONTEXT?{}:undefined;
+                var hits = this.ComputeIntersection(ray,true,true, true, cxt);
+                context.testContext =cxt
+                //await this.Sync(samples.length);
+                return hits;
+            },
+
+            //On Ray Hit
+            (intr:Interaction, context:PipelineContext)=>{  
+                let hit = intr.hit!
+                let L_Step:vec3=[0,0,0]   
+                //console.log("hit", context.i);   
+                if(context.i%8000==0) console.log("Step Context", context.pathIndex, context.i)
+                if (this.beforeMatEvalCheck(intr, context.pathIndex, context)) return context.checkResult;
+                if(hit && hit.p[2]<-0 && hit.material && hit.material.name=='floor')
+                {
+                    console.log("Computing Hit Context", {hit, context})
+                }                        
+                let light = hit.light;
+                if (light) {
+                    if (DFIX<=0 && context.pathIndex == 0) {
+                        context.stop = true;
+                        return light.Potencia;
+                    }
+                    else {
+                        context.stop = true;
+                        return utils.VECS.ZERO;
+                    }
+                }
+                else{
+                    
+                    let mat = hit.material!;
+                    if(!mat)
+                    {
+                        console.log("Material Inconsistent", mat, hit, context);
+                        return L_Step;
+                    }
+                    let interaction = intr;
+                    let p = hit.p;
+                    let n = normalize(hit.n)
+                    let Le = this.getLightRadiance(hit, context.ray,mat)
+                    
+                    // if(this.afterRadianceCalcCheck(hitCode,c,l,n,li)){
+                    //     c = this.checkResult;
+                    //     return;
+                    // }
                     if(this.hasResult)
                     {
                         return this.checkResult;
                     }
-                    var calcBDRF = mat.BDRF(hit, ray.origin);
-                    L_Step = add2(L_Step, mul(mul(Le, calcBDRF), beta))
+                    let calcBDRF = mat.BDRF(hit, context.ray.origin);
+                    L_Step = add2(L_Step, mul(mul(Le, calcBDRF), context.beta))
                     if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, calcBDRF));
-                    if(RENDER_PDF && (i == DFIX))
+                    if(RENDER_PDF && (context.pathIndex == DFIX))
                     {
-                        if(previousPDF>0.6)
+                        if(context.previousPDF>0.6)
                         {
-                            return <vec3>[previousPDF,0,0];
+                            return <vec3>[context.previousPDF,0,0];
                         }
-                        if(previousPDF>0.3)
+                        if(context.previousPDF>0.3)
                         {
-                            return <vec3>[0,previousPDF+0.3,0];
+                            return <vec3>[0,context.previousPDF+0.3,0];
                         }
-                        return <vec3>[0,0,previousPDF+0.6];
+                        return <vec3>[0,0,context.previousPDF+0.6];
                     }
-                    if(RENDER_BETA_LEN && (i == DFIX))
+                    if(RENDER_BETA_LEN && (context.pathIndex == DFIX))
                     {
                         const f = 1;
                         //return utils.scale(beta,1/f)
                         const subv = 1//3.5//1.9;
-                        return utils.sub2(beta,utils.scale(utils.VECS.ONE,subv))
+                        return utils.sub2(context.beta,utils.scale(utils.VECS.ONE,subv))
                     }
-                    if(i==DFIX)
+                    if(context.pathIndex==DFIX)
                     {
+                        /*
+                        if( utils.closeTo(context.sample[0],0.1,0.005)){
+                            console.log("radiance", {context, Le, L_Step, DFIX, hit, sample:context.sample, result:this.hasResult});
+                            return [0,0,1];
+                        }
+                        */
                         return L_Step;
+                       if(false && length(L_Step)<0.2 && context.hits[0][0].instanceRef==5)
+                       {
+                        console.log("radiance", {context, Le, L_Step, DFIX, hit, sample:context.sample, result:this.hasResult});
+                        return L_Step;
+                       }
+                       //return utils.VECS.ONE;
                     }
-                    L = DFIX<0 ? add2(L,L_Step):[0,0,0];
+                    let L = DFIX<0 ? add2(context.L,L_Step):[0,0,0];
                     
-                    if (i==DFIX && debugSample(this)) {
-                        console.log("Trace", Le, L)
+                    if(true && utils.closeTo(context.sample[0],0.1,0.005) && context.hits[0][0].instanceRef==5)
+                       {
+                        //console.log("radiance", {context, Le, L_Step, DFIX, hit, sample:context.sample, result:this.hasResult});
+                        //return L_Step;
+                       }
+                    if (context.pathIndex==DFIX && debugSample(context)) {
+                        console.log("Trace", Le, context.L)
                         this.checkResult = [0, 0, 1];
                         return <vec3>[0,0,1];
                     }
                     //console.log("render",Le, mat.BDRF(), beta, L); 
-                    //return L
+                    //if(1==1)return L
 
-                    var wig = normalize(this.GlobalToNormal(n,normalize(sub2(ray.origin,p))));
-                    var sample = mat.getSample(wig)
-                    var pdf = mat.GetPDF(sample)
-                    previousPDF = pdf;
-                    var wi = normalize(this.NormalToGlobal(n, sample.s))
+                    let wig = normalize(this.GlobalToNormal(n,normalize(sub2(context.ray.origin,p))));
+                    let sample = mat.getSample(wig, n)
+                    let pdf = mat.GetPDF(sample)
+                    context.previousPDF = pdf;
+                    let wi = normalize(this.NormalToGlobal(n, sample.s))
                     //return sub2(sample.s.map(Math.abs) as vec3, [0,0,0]);
                     //return utils.scale(utils.VECS.ONE,dot(sample.s,[0,0,1])>0.5?0:dot(sample.s,[0,0,1]))
-                    if(debugSample(this))console.log("@MARK2::wi gen",wig, n,sample, wi,beta)//    , this.GlobalToNormal([-1,0,0],[0,1,0]))
+                    if(debugSample(context))console.log("wi gen",wig, n,sample, wi,context.beta)//    , this.GlobalToNormal([-1,0,0],[0,1,0]))
                     //var r = sample.s.map(v=>Math.abs(v)) as vec3;
-                    //return r;
-                
+                    context.beta = min(mul(context.beta, utils.scale(calcBDRF, Math.max(0, dot(n, wi) / pdf))),utils.scale(utils.VECS.ONE,0.7))
                     
-                    beta = mul(beta, utils.scale(calcBDRF, Math.max(0, dot(n, wi) / pdf)))
-
-                    ray = createRay(p, wi);
-
+                    context.ray = interaction.SpawnRayToDirection(wi);
+                    return L;
                 }
+            },
+            
+            //On Ray Miss
+            (context:PipelineContext)=>{
+                //console.log("Miss", context);
+                if(FORCCE_MISS_DIRECTION) 
+                {
+                    var ray = context.ray
+                    var r = <vec3>[...ray.direction.map(v=>Math.abs(v))]
+                    context.L = r;
+                }
+                context.stop=true
+                return context.L
+            }
+            )
+
+            
+        console.log("Rays Processed", out)
+        for (let i = 0; i < this.W; i++) {
+            options.progress(i, this.W);
+            for (let j = 0; j < this.H; j++) {
+                var c: vec3 = [0, 0, 0]
+                for (let s = 0; s < count; s++) {
+                    //console.log("Add", i, j, s);
+                    c = add2(c,out[((i*this.H*count)+(j*count) + s)]);
+                }
+                film.SetPixelValue(i, j, utils.scale(c, 1 / count));
             }
         }
-        return L;
+        console.log("Pixels Filled")
+        options.progress(this.W, this.W);
+        this.Film.RenderImage();
+        console.log("Image Rendered")
+    }
+    cancel=false;
+    count = 0;
+    prom:Promise<void>;
+    ready:()=>void
+    initProm(){
+        this.count = 0;
+        this.prom = new Promise((resolve,reject)=>{
+            this.ready = ()=>{
+                resolve();
+            };
+            return ;
+        });
+    }
+    incCount(){
+        //console.log("inc", this.count)
+        this.count+=1;
+        return this.count;
+
+    }
+    Sync(max:number) {
+        var self = this;
+        return new Promise<void>((resolve, reject) => {
+            call();
+
+           async function call(){
+                let v = await self.semaphore.callFunction(async ()=>self.incCount());
+                self.prom.then(resolve)
+                //console.log("Sync", v, max)
+                if(v==max) 
+                {
+                    self.ready();
+                    self.initProm();
+                }
+           }
+        });
+    }
+    
+    async pipelineRenderProcessor(samples:vec2[], generateRay:Function,
+        ComputeIntersection:Function,
+       onRayHit:Function, onRayMiss:Function,
+       //getLightRadiance:Function
+       )
+    {
+    
+        var out=Array<vec3>(samples.length).fill([0,0,0]);
+        var promises  = []
+        for(let i = 0;i<samples.length;++i)
+        {
+            //console.log("Sample", i)
+            var p = this.pipelineRenderBase(i, 
+                generateRay,
+                ComputeIntersection,
+                onRayHit,
+                onRayMiss,
+                out
+            )
+            promises.push(p);
+        };
+        await Promise.all(promises);
+        return out;
+    }
+    semaphore = new Semaphore(1);
+    async pipelineRenderBase(sampleNumber:number, generateRay:Function,
+         ComputeIntersection:Function,
+        onRayHit:Function, onRayMiss:Function,
+        //getLightRadiance:Function
+         output:any[],
+        )
+    {
+        let L = utils.VECS.ZERO;
+        let beta = utils.VECS.ONE;
+        let context = <PipelineContext>{
+            i:sampleNumber,
+            beta:beta,
+            rays:<Ray[]>[],
+            hits:<Hit[][]>[],
+            L:utils.VECS.ZERO,
+            previousPDF:0,
+            pathIndex:0,
+            testContext :{}
+        }     
+        let ray = await generateRay(sampleNumber, context);
+        context.ray = ray;
+        //console.log("Sample", context.sample)
+        
+        var countMiss = 0;
+        for(let i = 0; i<DMAX;++i){
+            context.pathIndex=i;
+            context.rays.push(context.ray);
+            var hits:Hit[]=await ComputeIntersection(context.ray, context);
+            context.hits.push(hits);
+            var hit = hits ? hits[0] : undefined;
+            if (!hit) {
+                context.L = onRayMiss(context);
+                countMiss++;
+            }
+            else{
+                context.L = onRayHit(hit, context);
+                //console.log("Hit", i, context.L);
+            }
+            if(context.stop) break;
+            if(i==DFIX)break;
+        }
+        if(FORCCE_MISS_DIRECTION)context.L = countMiss>0?context.L:utils.VECS.ZERO;
+        output[sampleNumber] = context.L;
     }
     NormalToGlobal(n: vec3, sample: vec3): vec3 {
         var M = this.GenerateTransform(n);
@@ -298,7 +754,7 @@ export class Scene {
         
         var M = this.GenerateTransform(n);
         var M2 = inverse(M);
-        if(debugSample(this)) console.log("@MARK2::GlobalNormal",n, M, M2, sample);
+        if(debugSample(this)) console.log("GlobalNormal",n, M, M2, sample);
         return utils.transform(M2, sample)
     }
     GenerateTransform(n: vec3)
@@ -314,25 +770,84 @@ export class Scene {
         if(debugSample(this)) console.log("@MARK2::GenerateTransform",t,b, n, M)
         return M;
     }
-    getLightRadiance(p: vec3, n: vec3): vec3 {
-        var nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
+    getLightSamples(): LightSample[]  {
+        let nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
+        return Array(nsamples).fill({}).map((_,i)=>this.getLightSample())
+    }
+    getLightRadianceFromSamples(samples:LightSample[], interaction:Interaction, rayOrigin:Ray, mat:Material): vec3 {
+        let nsamples = samples.length;
+        var c = utils.VECS.ZERO
+        for(let sampleI=0;sampleI<nsamples;sampleI++){
+            let lp = samples[sampleI]
+            if(!lp) continue;
+            
+            let ray = interaction.SpawnRayToPoint(lp.s, true);
+            //let {ns,s,pdf} = lp;
+            let ns = normalize(lp.light.light.getN(lp.point, interaction));
+            //var rad = sample.Radiance(this, p, n);
+           // let ds = sub2(lp.s, hitOrigin.p)
+           // let wi = normalize(ds);
+            let factorNumerator = max0(dot(interaction.n, ray.direction)) * max0(dot(ns, minus(ray.direction)))
+
+            mat.GetPDF(lp)
+            if(this.lightCheck(ns, ray.direction, factorNumerator)){
+                return this.checkResult;
+            }
+            //let ray = createRay(add2(hitOrigin.p, utils.scale(hitOrigin.n,EPSILON)), ray.direction);
+            let hitA = this.ComputeIntersection(ray, true, true, true);
+            let hit = hitA ? hitA[0]?.hit : undefined;
+            if (hit?.t??1 > 0.0001)
+            {
+                //hit = hitA[1];
+            }
+            if (!hit  || (hit.t > 0.0001 &&(!hit!.light || (hit!.light != lp.light.light)))) {
+                //add2(c,[0, 0, 0])
+                if (debugSample(this)) {
+                    console.log("LightRadiance hit", lp, c, ray.direction, ray, hit, interaction.p, interaction.n, )
+                    this.checkResult = [0, 0, 1];
+                    return <vec3>[0,0,1];
+                }
+            }
+            else {
+                let d2 = interaction.SqrDistance(lp.s)
+                let I = lp.light.light.Intensidade;
+                let factor =  factorNumerator/ (d2 * lp.pdf)
+                c = add2(c,utils.scale(I, factor))
+                
+                if (debugSample(this)) {
+                    console.log("LightRadiance", lp, c, ray.direction, ray, hit, interaction.p, interaction.n, d2, I, factor, dot(interaction.n,ray.direction), dot(ns,minus(ray.direction)))
+                    this.checkResult = [0, 0, 1];
+                    return <vec3>[0,0,1];
+                }
+            }   
+            
+        }
+        return utils.scale(c,1/nsamples);
+
+        function max0(v: number) {
+            return Math.max(0, v);
+        }
+    }
+    getLightRadiance(hitOrigin:Hit, rayOrigin:Ray, mat:Material): vec3 {
+        let nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
+        let c:vec3 = [0,0,0]
         if(false)
         {
 
-            var c:vec3 = [0,0,0]
+            c = [0,0,0]
             this.lights.forEach(lp=>{
                 //var light = l.light!
                 var s = (lp.light as PontualLight).Position;
                 var lpdf = 1;
                 var pdf = 1;
-                var ns = sub2(p, s)
-                var ds = sub2(s, p)
+                var ns = sub2(hitOrigin.p, s)
+                var ds = sub2(s, hitOrigin.p)
                 var d2 = utils.sqrLen(ds)
                 var I = lp.light!.Intensidade;
                 
                 var wi = normalize(ds);
                 
-                var factor = max0(dot(n, wi)) * max0(dot(ns, minus(wi))) / (d2 * lpdf * pdf)
+                var factor = max0(dot(hitOrigin.n, wi)) * max0(dot(ns, minus(wi))) / (d2 * lpdf * pdf)
                 c = add2(c,utils.scale(I, factor))
                 
             })
@@ -340,19 +855,25 @@ export class Scene {
         else{
 
             //sorteia um sample de luz
-            var c:vec3 = [0,0,0]
+            c = [0,0,0]
             //nsamples = 1;
-            for(var sample=0;sample<nsamples;sample++)
+            for(let sample=0;sample<nsamples;sample++)
             {
                 
-                var lp = this.getLightSample();
+                let lp = this.getLightSample();
                 if (lp) {
-                    var { s, ns, pdf } = this.getSamplePoint(p, lp.light);
-                    ns = normalize(ns);
+                    var interaction = Interaction.fromHit(hitOrigin)
+                    //let {ns,s,pdf} = lp;
+                    let ns = normalize(lp.light.light.getN(lp.point, interaction) );
+                    //let ns = normalize(lp.point.ns);
                     //var rad = sample.Radiance(this, p, n);
-                    var ds = sub2(s, p)
-                    var wi = normalize(ds);
-                    var factorNumerator = max0(dot(n, wi)) * max0(dot(ns, minus(wi)))
+                    
+                    let ray = interaction.SpawnRayToPoint(lp.s, true);
+                    //let ds = sub2(lp.s, hitOrigin.p)
+                    //let wi = normalize(ds);
+                    let factorNumerator = max0(dot(hitOrigin.n, ray.direction)) * max0(dot(ns, minus(ray.direction)))
+
+                    mat.GetPDF(lp)
                     
                     /*
                     if(FORCCE_L_HIT)
@@ -361,32 +882,32 @@ export class Scene {
                         this.checkResult = add2(c1, <vec3>r2);
                         return true;
                     }*/
-                    if(this.lightCheck(ns, wi, factorNumerator)){
+                    if(this.lightCheck(ns, ray.direction, factorNumerator)){
                         return this.checkResult;
                     }
-                    var ray = createRay(add2(p, utils.scale(n,EPSILON)), wi);
-                    var hitA = this.ComputeIntersection(ray, true, true, true);
-                    var hit = hitA ? hitA[0] : undefined;
+                    //let ray = createRay(add2(hitOrigin.p, utils.scale(hitOrigin.n,EPSILON)), wi);
+                    let hitA = this.ComputeIntersection(ray, true, true, true);
+                    let hit = hitA ? hitA[0].hit : undefined;
                     if (hit?.t??1 > 0.0001)
                     {
                         //hit = hitA[1];
                     }
-                    if (!hit  || (hit.t > 0.0001 &&(!hit!.light || (hit!.light != lp.light)))) {
+                    if (!hit  || (hit.t > 0.0001 &&(!hit!.light || (hit!.light != lp.light.light)))) {
                         //add2(c,[0, 0, 0])
-                    if (debugSample(this)) {
-                        console.log("LightRadiance hit", lp, c, ds, ray, hit, p, n, )
-                        this.checkResult = [0, 0, 1];
-                        return <vec3>[0,0,1];
-                    }
+                        if (debugSample(this)) {
+                            console.log("LightRadiance hit", lp, c, ray.direction, ray, hit, hitOrigin.p, hitOrigin.n, )
+                            this.checkResult = [0, 0, 1];
+                            return <vec3>[0,0,1];
+                        }
                     }
                     else {
-                        var d2 = utils.sqrLen(ds)
-                        var I = lp.light.Intensidade;
-                        var factor =  factorNumerator/ (d2 * lp.pdf * pdf)
+                        let d2 = interaction.SqrDistance(lp.s)
+                        let I = lp.light.light.Intensidade;
+                        let factor =  factorNumerator/ (d2 * lp.pdf)
                         c = add2(c,utils.scale(I, factor))
                         
                         if (debugSample(this)) {
-                            console.log("LightRadiance", lp, c, ds, ray, hit, p, n, d2, I, factor, dot(n,wi), dot(ns,minus(wi)))
+                            console.log("LightRadiance", lp, c, ray.direction, ray, hit, hitOrigin.p, hitOrigin.n, d2, I, factor, dot(hitOrigin.n,ray.direction), dot(ns,minus(ray.direction)))
                             this.checkResult = [0, 0, 1];
                             return <vec3>[0,0,1];
                         }
@@ -407,9 +928,9 @@ export class Scene {
     //    throw new Error("Could not determine sample.");
     //}
     getSamplePoint(p: vec3, light: Light) {
-        return light.getSamplePoint(p);
+        return light.getSamplePoint();
     }
-    getLightSample(): { light: Light, pdf: number } {
+    getLightSample(): LightSample {
         var n = Math.random()
         var pdfs: number[] = [];
         //console.log("some",this.lights.some(l=>(l.light instanceof PontualLight)))
@@ -450,7 +971,17 @@ export class Scene {
         var idx = cdfs.findIndex(v => v == gts[0]);
         //idx = 0;
         //console.log("Index",gts, idx, cdfs, this.lights, probs)
-        return { light: this.lights[idx].light!, pdf: pdfs[idx] };
+        let lightEntity = this.lights[idx]
+        let light = lightEntity.light!
+        let ls = light.getSamplePoint();
+        return <LightSample>{pdf:ls.pdf*pdfs[idx],s:ls.s,  
+            light:{light,pdf:pdfs[idx]},
+            entity:lightEntity,
+            n:normalize(utils.VECS.ONE),
+            point:ls,
+            wi:utils.VECS.ZERO,
+           // light: pointPdf:ls.pdf, light: light, pdfLight: pdfs[idx] 
+        };
     }
     checkResult: vec3 = utils.VECS.ZERO
     hasResult = false;
@@ -469,31 +1000,49 @@ export class Scene {
         }
         return false;
     }
-    beforeMatEvalCheck(hit: Hit|undefined, code = 0) {
-        if (hit?.uv) {
+    beforeMatEvalCheck(hit: Interaction|undefined, code = 0, cxt:{checkResult:vec3}=this) {
+        if (hit?.hit?.uv) {
             //return min([1,1,1],add2(scale([1,0,0],hit.uv[0]), scale([0,1,0],hit.uv[1])));
         }
-
-        if (FORCCE_HIT) {
-            this.checkResult = [1, 0, 0];
+        if(false)
+        {            
+            cxt.checkResult = [hit!.p[1]/4, (hit!.p[1]<4)?0:1, 0];
             return true;
         }
-        if (FORCCE_HIT_ON_VERTEX && hit?.forceOnVertex) {
+        if (Config.FORCCE_HIT) {
+            cxt.checkResult = [1, 0, 0];
+            return true;
+        }
+        
+        if(Config.FORCCE_NORMAL)
+        {
+            //console.log("ForceNormal", cxt, hit)
+            if(hit?.hit)
+            {
 
-            this.checkResult = [1, 0, 0];
+                cxt.checkResult =  hit?.hit.n.map(v=>Math.abs(v)) as vec3;
+                return true;
+            }
+            cxt.checkResult = utils.VECS.ZERO
+            return true;
+        }
+        if (FORCCE_HIT_ON_VERTEX && hit?.hit?.forceOnVertex) {
+
+            cxt.checkResult = [1, 0, 0];
             return true
         }
-        if (FORCCE_HIT_MAT_CODE && hit && hit.instanceRef > 0) {
+        
+        if (FORCCE_HIT_MAT_CODE && hit && hit?.hit!.instanceRef > 0) {
             //return <vec3>[0,0,1]
-            this.checkResult = calculateHitCode(hit.instanceRef)
+            cxt.checkResult = calculateHitCode(hit?.hit!.instanceRef)
             return true
         }
         if ((FORCCE_RAY_HIT_MAT_CODE==code) ) {
-            if(hit && hit.instanceRef > 0)
+            if(hit?.hit && hit?.hit!.instanceRef > 0)
                 //this.checkResult = <vec3>[0,0,1]
-                this.checkResult = calculateHitCode(hit.instanceRef)
+                cxt.checkResult = calculateHitCode(hit.hit!.instanceRef)
             else
-                this.checkResult = <vec3>[0,0,0]
+            cxt.checkResult = <vec3>[0,0,0]
             //return <vec3>[0,0,1]
             return true
         }
@@ -532,7 +1081,7 @@ export class Scene {
         //var transform = Transform.fromVec(position,light.ArestaI,light.Arestaj);
         var transform = new Transform;
         //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
-        this.AddEntity({ name: "Luz de Area", light, shape: new Area(light.Position, light.ArestaI, light.Arestaj), transform });
+        this.AddEntity(createTPrimitive({ name: "Luz de Area", light, shape: new Area(light.Position, light.ArestaI, light.Arestaj), transform }));
     }
 
     AddPonctualLight(light: PontualLight) {
@@ -543,7 +1092,7 @@ export class Scene {
         //const position:vec3 = [0,2,1]
         var transform = Transform.fromScaleAndTranslation(position, scale, scale, scale);
         //console.log("Light",transform.toGlobal([1,0,0]),transform.toLocal([1,0,0]))
-        this.AddEntity({ name: "Luz Pontual", light, shape: new Sphere(), transform });
+        this.AddEntity(createTPrimitive({ name: "Luz Pontual", light, shape: new Sphere(), transform }));
 
 
     }
@@ -559,6 +1108,7 @@ export class Scene {
     AddEntity(arg0: EntityInstance) {
         //this.obj.push(arg0);
         //console.log("AreaAddEntity", arg0)
+        //console.log("Addentity", arg0)
         this.instances.push(arg0)
         this.tester.Add(arg0);
 
@@ -571,7 +1121,17 @@ export class Scene {
     }
 
     //obj:{material:Material,shape:Shape}[] =[]
-    ComputeIntersection(ray: Ray, ignoreNegative:boolean=true,ignoreBackface:boolean=true,ignoreEpslon:boolean = true): Hit[]  {
+    ComputeIntersectionList(rays: Ray[], ignoreNegative:boolean=true,ignoreBackface:boolean=true,ignoreEpslon:boolean = true): Interaction[][]  {
+        console.log("Compute")
+        this.tester.ignoreBackface = ignoreBackface;
+        this.tester.ignoreNegativeValues=ignoreNegative;
+        this.tester.ignoreEpslon=ignoreEpslon;
+        var bestHit = this.tester.TestRays(rays);
+        console.log("Post Compute", bestHit)
+        return bestHit;
+    }
+
+    ComputeIntersection(ray: Ray, ignoreNegative:boolean=true,ignoreBackface:boolean=true,ignoreEpslon:boolean = true, context:any={}): Interaction[]  {
         if (verbose) console.log("Compute Intersections in Scene and ray", ray);
         const v2 = sampleBetween2(this.Sample, LIMITS[0], LIMITS[1], LIMITS[2], LIMITS[3]);
         //var t = Infinity;
@@ -592,13 +1152,15 @@ export class Scene {
         this.tester.ignoreBackface = ignoreBackface;
         this.tester.ignoreNegativeValues=ignoreNegative;
         this.tester.ignoreEpslon=ignoreEpslon;
-        setVerbose(debugSample(this));
-        var bestHit = this.tester.Test(ray);
-        if (verbose) console.log("MARK2::bestHit", ray, bestHit);
-        setVerbose(false);
+        //setVerbose(debugSample(this));
+        context = {}
+        var bestHit = this.tester.Test(ray, context);
+        if (verbose) console.log("bestHit", ray, bestHit);
+        
+        //setVerbose(false);
         //console.groupEnd()
         //this.tester.Test()
-        if (verbose3) console.log("Hit Object Final", bestHit);
+        if (verbose3) console.log("MARK2::Hit Object Final", bestHit, context);
 
         //if(bestHit)res.push(bestHit);
         return bestHit;
@@ -630,4 +1192,19 @@ export class Scene {
                 console.log("Pixel", i, j, this.camera.GenerateRay([i / this.W, j / this.H]))
 
     }
+} 
+
+type PipelineContext = {
+    ray:Ray, 
+    rays:Ray[],
+    hits:Hit[][],
+    beta:vec3, 
+    i:number, 
+    previousPDF:number, 
+    L:vec3, 
+    pathIndex:number, 
+    stop:boolean,
+    sample:vec2, 
+    testContext:any,
+    checkResult:vec3
 }

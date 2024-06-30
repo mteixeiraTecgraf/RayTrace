@@ -1,0 +1,60 @@
+CONFIG:
+  scene_name: "Example Scene"
+  background_color: "#000000"
+  render_quality: "high"
+
+SCENE:
+  CAMERA:
+    ACTIONS:
+    - ROTATE_X: -10
+    - ADD_ORIGIN: 
+        x: 0
+        y: -2
+        z: 1.5
+  entities:
+    - NAME: "Pontual Light 1"
+      LIGHT:
+        TYPE: "Pontual"
+        POSITION:
+          x: 0
+          y: -2
+          z: 2
+    - NAME: "Pontual Light 2"
+      LIGHT:
+        TYPE: "Pontual"
+        POSITION:
+          x: -2
+          y: 0
+          z: 2
+    - NAME: "Floor"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#CCCCCC"
+        speccular_color: "#CCCCCC"
+        shiness: 20
+        name: floor
+      SHAPE:
+        TYPE: "Box"
+      TRANSFORMS:
+        - TRANSLATE:
+            x: -0.5
+            y: -0.5
+            z: -1
+        - SCALE:
+            x: 10
+            y: 10
+            z: 0.1
+    - NAME: "Sphere"
+      MATERIAL:
+        TYPE: "Phong"
+        diffuse_color: "#ff0000"
+        speccular_color: "#ffffff"
+        shiness: 20
+        name: sphere
+      SHAPE:
+        TYPE: "Sphere"
+      TRANSFORMS:
+        - TRANSLATE:
+            x: 0
+            y: 0
+            z: 1

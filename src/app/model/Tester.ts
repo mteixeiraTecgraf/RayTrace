@@ -1,8 +1,8 @@
-import { DEFAULTPROGRESS, EPSILON, Hit, EntityInstance, ProgressAction, Ray, getT } from "./Primitive";
+import { EPSILON, Hit, EntityInstance, Ray, getT, Interaction } from "./Primitive";
 import { Box } from "./Shapes";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, TEST_BRUTE_FORCE } from "./config";
+import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_LEVEL, TEST_BRUTE_FORCE } from "./config";
 import { distance, max, min, verbose, verbose3 } from "./utils";
-
+import {DEFAULTPROGRESS, ProgressAction} from './Scene'
 export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:EntityInstance}
 
 export class IntersectionTester{
@@ -12,32 +12,9 @@ export class IntersectionTester{
     {
         this.instances.push(instance);
         return;
-        
-        var boxAdj = instance.shape.BondingBox().Borders().map(instance.transform.toGlobal,instance.transform);
-        var vmax = max(...boxAdj);
-        var vmin = min(...boxAdj);
-        var node:AccNode = {instance:instance, box: 
-            new Box(vmin,vmax)
-            //arg0.shape.BondingBox()
-        };
-        if(!this.root.instance)
-        {
-            this.root = node;
-        }
-        else
-        {
-            node.child2 = this.root;
-            this.root = node
-            var bmin = this.root.child2!.box!.bMin;
-            var bmin = min(this.root.box!.bMin, this.root.child2!.box!.bMin);;
-            var bmax = max(this.root.box!.bMax, this.root.child2!.box!.bMax);
-            this.root.box = new Box(bmin, bmax)
-            console.log("Box", this.root.box)
-
-        }
     }
     generateStructure(progress:ProgressAction = DEFAULTPROGRESS){
-        var centroids = this.instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
+        var centroids = this.instances.map(i=>i.Centroid());
         var bmax = max(...centroids);
         var bmin = min(...centroids);
         var bbox = new Box(bmin, bmax);
@@ -49,9 +26,7 @@ export class IntersectionTester{
     }
     getBoundingBox(instance:EntityInstance)
     {
-        var bbox = instance.shape.BondingBox();
-
-        var globalsborders = bbox.Borders().map(instance.transform.toGlobal, instance.transform);
+        var globalsborders = instance.GlobalBorders();
         var newBBox =  new Box(min(...globalsborders), max(...globalsborders));
         //console.log("BoundBox Transf", instance, globalsborders, newBBox);
         return newBBox;
@@ -66,7 +41,7 @@ export class IntersectionTester{
         }
 
         //progress(end+init/2)
-        var centroids = instances.map(i=>i.transform.toGlobal(i.shape.BondingBox().Centroid()));
+        var centroids = instances.map(i=>i.Centroid());
         var bmax = max(...centroids);
         var bmin = min(...centroids);
         var bbox = new Box(bmin, bmax);
@@ -116,13 +91,25 @@ export class IntersectionTester{
             child1:n1, child2:n2};
 
         function sortBy(ia:EntityInstance,ib:EntityInstance){
-            var v1 = (ia.shape.BondingBox().Centroid()[best]);
-            var v2 = (ib.shape.BondingBox().Centroid()[best]);
+            var v1 = (ia.BoundingBox().Centroid()[best]);
+            var v2 = (ib.BoundingBox().Centroid()[best]);
             return v1-v2
         }
     }
     root:AccNode = {}
-    Test(ray:Ray):Hit[]{
+    TestRays(rays:Ray[]):Interaction[][]{
+        if(false)
+        {
+
+            console.log("Teste", this);
+            let kernelGenerator = (this.root.box!).kernelFunction()
+            let outputs = kernelGenerator(rays)
+            console.log("Teste", outputs);
+            return outputs as Interaction[][]
+        }
+        return rays.map(r=>this.Test(r));
+    }
+    Test(ray:Ray, context:any = undefined):Interaction[]{
 
         if(TEST_BRUTE_FORCE) return this.TestForce(ray);
         /*
@@ -133,23 +120,43 @@ export class IntersectionTester{
             return ;
         }
         */
-        return this.TestNode(ray, this.root)
+        return this.TestNode(ray, this.root, 0, 0,context)
         
     }
-    TestNode(ray:Ray, node?:AccNode, v = 0):Hit[]
+    firstNodeName(node:AccNode, i=0):any
+    {
+        if(node.instance)
+        {
+            return {name:node.instance.name,idx:i};
+        }
+        if(node.child1) return this.firstNodeName(node.child1,i+1);
+        return ;
+    }
+    TestNode(ray:Ray, node?:AccNode, v = 0, d=0, context:any = undefined):Interaction[]
     {        
         if(!node) return [];
         
-        if(verbose) console.log("Computing Box intersections", ray, node);
-        var hit = node.box?.ComputeIntersection(ray);
+        if(context)context.instanceTests??=[]
+        if(context)context.hits??=[]
+
+        if(verbose) console.log("Computing Box intersections", {ray, node, first:this.firstNodeName(node), v,d});
+        var intHit = node.box?.ComputeIntersection(ray);
         
+        if(FORCCE_HIT_LEVEL>=0)
+        {
+            return intHit?[intHit]:[];
+        }
             
 
-        if(this.root.box && !hit)
+        if(this.root.box && !intHit)
         {
+            if(verbose) console.log("No Hit", {ray, node, first:this.firstNodeName(node), v,d});
             //Not Hit
+            if(context)context.hits.push({miss:true, node, v, d, ray});
             return [];
         }
+        if(context)context.hits.push({hit: intHit, node, v, d, ray});
+        
 
         //console.log("Hit some 1")
 
@@ -159,55 +166,81 @@ export class IntersectionTester{
                 console.warn("No Child nor instance", node);
                 return [];
             }
+            if(context) 
+            {
+                context.primitiveTests = context.primitiveTests??{}
+                context.primitiveTests[node.instance.name+d+v] = true;
+            }
 
             if(verbose) console.log("Computing intersections", ray, node);
-            var tRay = node.instance!.transform.toLocalRay(ray);
-            var tHit = node.instance!.shape.ComputeIntersection(tRay);
-            //console.log("ComputeIntersection", thit);
-            var hit = node.instance!.transform.toGlobalHit(tHit);
-            if(hit) {
-                if(verbose) console.log("Computing Hit", ray, node, tRay, tHit, hit);
-                hit.material = node.instance.material;
-                hit.light = node.instance.light;
-                hit.instanceRef = v;
+            var intHit = node.instance.ComputeIntersection(ray);
+            
+            // var tRay = node.instance!.transform.toLocalRay(ray);
+            // var hit = node.instance!.ComputeIntersection(tRay);
+            // //console.log("ComputeIntersection", thit);
+            // var hit = node.instance!.transform.toGlobalHit(tHit);
+
+            
+            if(context)context.instanceTests.push({ray,hit: intHit, instance:node.instance});
+            if(context)context.hits.push(intHit);
+            
+            if(intHit) {
+                intHit.primitive = node.instance;
+                if(verbose) console.log("Computing Hit", ray, node, intHit);
+                intHit.hit.material = node.instance.material;
+                intHit.hit.light = node.instance.light;
+                intHit.hit.instanceRef = v;
+                
+                if(intHit.p[1]>=2 && intHit.hit.material && intHit.hit.material.name=='back'&& false)
+                {
+                    console.log("Computing Hit b", {ray, node, hit: intHit})
+                }            
                 //if(node.instance.light) console.log("Node Light", ray, hit);
                 //console.log("Hit some")
             }
             else{
                 //console.log("Hit None", node.instance)
             }
-            return hit?[hit]:[];
+            return intHit?[intHit]:[];
         }
 
-        var testRight = this.TestNode(ray, node.child1,v*2);
-        var testLeft = this.TestNode(ray, node.child2,(v*2)+1);
+        var testRight = this.TestNode(ray, node.child1,v*2, d+1, context);
+        var testLeft = this.TestNode(ray, node.child2,(v*2)+1,d+1, context);
 
         //testLeft = <Hit>{...testLeft, instanceRef:v};
         //testRight = <Hit>{...testRight, instanceRef:v};
         var res = []
         res.push(...testRight);
         res.push(...testLeft);
-        res = res.sort(this.CompareHitsN.bind(this));
+        
+        if(false)
+        {
+            
+            let names = res.map(r=>r.material?.name)
+            if(names.includes('back')&& names.includes('latRed'))
+            {
+                console.log("Computing Hit b", {res, ray})
+            }            
+        }
+        res = res.sort(this.CompareInteractionsN.bind(this));
         if(verbose) console.log("HitsCompared", res);
         //return this.CompareHits(this.SafeHit(testRight), this.SafeHit(testLeft));
         return res.slice(0,3);
 
     }
 
-    TestForce(ray:Ray, v2:boolean =false):Hit[]{
+    TestForce(ray:Ray, v2:boolean =false):Interaction[]{
         
-        var bestHit:Hit|undefined = undefined; 
+        var interaction:Interaction|undefined = undefined; 
         this.instances.forEach(obj => {
             
             if(verbose) console.log("Computing intersections", ray, obj);
-            var tRay = obj.transform.toLocalRay(ray);
-            var thit = obj.shape.ComputeIntersection(tRay);
-            //console.log("ComputeIntersection", thit);
-            var hit = obj.transform.toGlobalHit(thit);
+            var interaction = obj.ComputeIntersection(ray);
+            var hit = interaction?.hit;
             
             if(hit) hit.t = getT(ray, hit!.p);
             if(v2)
-                console.log("ComputeIntersection",ray, tRay, thit, hit, bestHit)
+                console.log("ComputeIntersection",ray, hit, interaction)
             if(verbose)console.log("Hit Object", hit, obj);
 
             
@@ -217,26 +250,30 @@ export class IntersectionTester{
                 //console.log("Hit", n, hit?.p, l,ml, distance(hit.p, [3,1.5,2.9]));
                 //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
             }
-            if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (bestHit?.t??Infinity)))
+            if(hit && !hit.backface &&(hit?.t > EPSILON) && (hit.t < (interaction?.hit?.t??Infinity)))
             {
                 hit.material = obj.material;
                 hit.light = obj.light;
             
-                bestHit = hit;
+                interaction!.hit = hit;
                 if(verbose3)
                 if(!ray.camera)
-                    console.log("Hit Object", bestHit, obj);
+                    console.log("Hit Object", interaction, obj);
                 //console.log("Hit", bestHit);
 
             }
             
         });
-        return [bestHit!];
+        return [interaction!];
     }
     ignoreEpslon = false;
     ignoreNegativeValues = false;
     ignoreBackface = false;
+    CompareInteractionsN(h1:Interaction, h2:Interaction){
+        return this.CompareHitsN(h1.hit, h2.hit);
+    }
     CompareHitsN(h1:Hit, h2:Hit){
+        
         if(this.ignoreNegativeValues)
         {
             if(h1.t<0 && h2.t <0) return h1.t - h2.t;
