@@ -37,7 +37,13 @@ export class AppComponent implements OnInit{
     //this.application.initScene(this.ctx);
 
   }
+  runText(textBox:any){
+    this.application.textBox = textBox
+    console.log(textBox);
+    this.reload(-1)
+  }
   reload(sceneNum:number){
+    console.log("Reload", sceneNum)
     this.totalPerf.totalCicles+=this.n;
     this.totalPerf.startWith();
     this.perf.startWith();

@@ -4,7 +4,7 @@ import { Hit, Ray, createHit } from "./Primitive";
 import * as GLMat from  "gl-matrix";
 import * as utils from "./utils";
 
-type MatrixPipeAction = (mat:mat4)=>mat4;
+export type MatrixPipeAction = (mat:mat4)=>mat4;
 
 export function translate(vec:vec3):MatrixPipeAction{
     return function(mat:mat4){
@@ -19,6 +19,18 @@ export function scale(vec:vec3):MatrixPipeAction{
 export function rotate(n:number, axis:"x"|"y"|"z"):MatrixPipeAction{
     return function(mat:mat4){
         return utils.rotate(mat, n, axis);
+    }
+}
+export function rotateVec(vec:vec3):MatrixPipeAction{
+    return function(mat:mat4){
+        if(vec[0]!=0)
+            return utils.rotate(mat, vec[0],"x")
+        if(vec[1]!=0)
+            return utils.rotate(mat, vec[1],"y")
+        if(vec[2]!=0)
+            return utils.rotate(mat, vec[2],"z")
+        return utils.rotate(mat, 0,'x')
+        
     }
 }
 export class Transform{

@@ -1,6 +1,6 @@
 import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/core';
 import { vec3 } from 'gl-matrix';
-import { AMBIENT_LIGHT, AreaLight, CONFIG_HIGHLIGHT, Camera, Film, PERCENTUAL_STEP, PontualLight, SAMPLE_COUNT, Scene, Transform, rotate, scale, translate } from './model';
+import { AMBIENT_LIGHT, AreaLight, CONFIG_HIGHLIGHT, Camera, Film, Light, MatrixPipeAction, PERCENTUAL_STEP, PontualLight, SAMPLE_COUNT, Scene, Shape, Transform, rotate, rotateVec, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
 import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
@@ -9,11 +9,178 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { bufferTime, map, filter, tap} from 'rxjs/operators';
 import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
 import { DEFAULTPROGRESS, ProgressAction, createPrimitive, createTPrimitive, createTransformed } from './model/Primitive';
+import { YamlParser } from './model/YamlParser';
+
+function hexToRgbVector(hex: string): vec3 {
+  // Remove the hash at the start if it's there
+  hex = hex.replace(/^#/, '');
+
+  // Parse r, g, b values
+  const bigint = parseInt(hex, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+
+  // Normalize to [0, 1]
+  return [r / 255, g / 255, b / 255];
+}
+
 
 @Injectable({
  providedIn: 'root',
 })
 export class Application{
+  textBox: string
+  async testLoadSceneYML(scene:Scene) {
+    console.log("Loading Scene Yaml ")
+    var sceneContent = YamlParser.parseYaml(this.textBox)
+    sceneContent.SCENE.entities.forEach(e=>{
+      var light:Light|undefined = undefined;
+      var material:Material|undefined = undefined
+      if(e.LIGHT){
+        
+        switch(e.LIGHT.TYPE)
+        {
+          case 'Pontual':
+            var p = e.LIGHT['POSITION']
+            console.log('P', e.LIGHT, e.LIGHT['POSITION'], p)
+            scene.AddPonctualLight(new PontualLight([p.x,p.y,p.z],));
+            return;
+          case 'Area':
+            scene.AddAreaLight(new AreaLight(
+              asVec3(e.LIGHT['POSITION']),
+              asVec3(e.LIGHT['ARESTA_I']),
+              asVec3(e.LIGHT['ARESTA_J']),
+              asVec3(e.LIGHT['INTENSIDADE'])))
+              return;
+            break;
+          default:
+            this.SimpleArea(scene);
+        }
+      }
+      if(e.MATERIAL){
+        console.log("Processing Material", e.MATERIAL);
+        var diff = hexToRgbVector(e.MATERIAL['diffuse_color'])
+        var spec = hexToRgbVector(e.MATERIAL['speccular_color'])
+        material = new PhongMaterial(diff, spec, e.MATERIAL['shiness'], e.MATERIAL['name'])
+        switch(e.MATERIAL.TYPE)
+        {
+          case "PhongMetal":
+            material = new PhongMetal(material as PhongMaterial,e.MATERIAL["r0"],e.MATERIAL["name"])
+        }
+        
+      }
+      var shape:Shape
+      switch(e.SHAPE.TYPE)
+      {
+        case 'Sphere':
+          shape = new Sphere()
+          //this.addSphere(scene,Transform.fromPipe(translate([0,0,1]))); 
+          //return;
+          break;
+        case 'Box':
+          shape = new Box()
+          break;
+        default:
+          shape = new Sphere()
+      }
+      
+      var transform:Transform = new Transform();
+      if(e.TRANSFORMS){
+        var pipe:MatrixPipeAction[] = e.TRANSFORMS.map(
+          p=>{
+            var funcs:{[key: string]:(v:vec3)=>MatrixPipeAction}={
+              "TRANSLATE":translate,
+              "SCALE":scale,
+              "ROTATE":rotateVec,
+            }
+            var r = processAction(p, funcs,asVec3);
+            return r;
+            for (const key in funcs) {
+              if (p.hasOwnProperty(key)) { // Verifica se a chave pertence ao próprio objeto e não ao protótipo
+                //var act:(v:vec3)=>MatrixPipeAction = funcs[key]
+                return funcs[key](asVec3(p[key]))
+              }
+            }
+            throw Error(`Unexpected Transform ${p}`)
+          }
+        )
+        
+        transform = Transform.fromPipe(...pipe);
+        //Transform.fromPipe(translate([0,0,1]))); 
+      }
+      scene.AddEntity(
+        createTransformed(
+          createPrimitive(
+            {name:e.NAME,
+              light,
+              material, 
+              shape
+            }), 
+            transform
+          )
+        )
+
+    })
+
+    sceneContent.SCENE.CAMERA?.ACTIONS?.forEach(action=>{
+      console.log("Running Action ", action)
+      var funcs = {
+        "ROTATE_X": scene.camera.RotateX.bind(scene.camera),
+        "ROTATE_Z": scene.camera.RotateZ.bind(scene.camera),
+        "ROTATE_ORIGIN_X": scene.camera.RotateOriginX.bind(scene.camera),
+        "ROTATE_ORIGIN_Z": scene.camera.RotateOriginZ.bind(scene.camera),
+        "ADD_ORIGIN": addOrigin,
+        "ANGLE": (v:number)=>scene.camera.angle=v,
+
+      }
+      processAction(action, funcs)
+      function addOrigin(argsObj:any){
+        var {x,y,z} = argsObj;
+        scene.camera.addToOrigin([x,y,z])
+        return;
+      }
+      return;
+      if(action["ROTATE_X"])
+      {
+        scene.camera.RotateX(action["ROTATE_X"])
+        return;
+      }
+      if(action["ADD_ORIGIN"])
+      {
+        var {x,y,z} = action["ADD_ORIGIN"]
+        scene.camera.addToOrigin([x,y,z])
+        return;
+      }
+    }
+    )
+    
+    function isValidOp(v:any): v is{x: number,y: number,z: number} {
+      return (v as {x: number,y: number,z: number}).x!=undefined
+    }
+    function asVec3(v:any): vec3 {
+      if(isValidOp(v))
+      {
+        let {x,y,z} = v;
+        return [x,y,z] as vec3;
+      }
+      let [x,y,z] = v as [number,number, number]
+      return [x,y,z] as vec3;
+    }
+    
+    function processAction<T>(obj:any, functions:any, map:(...args:any[])=>any = (v:any)=>v)
+    {
+      console.log("Process", obj)
+      for (const key in functions) {
+        if (obj.hasOwnProperty(key)) { // Verifica se a chave pertence ao próprio objeto e não ao protótipo
+          //var act:(v:vec3)=>MatrixPipeAction = funcs[key]
+          console.log("Process calling ", key, obj[key])
+          return functions[key](map(obj[key]))
+        }
+      }
+      throw Error(`Unexpected Option ${obj}`)
+    }
+  }
     constructor(private http:HttpClient){}
     static Start(){
 
@@ -37,6 +204,9 @@ export class Application{
             }
         }})
     })
+  }
+  reset(){
+    
   }
   _initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1,o:{progress:ProgressAction} = {progress:DEFAULTPROGRESS}, cont=true){
     //const W = this.ctx.canvas.width;
@@ -98,6 +268,9 @@ export class Application{
         case 5:
             sceneFunction =  this.scene5;
             break;
+        case -1:
+          sceneFunction = this.testLoadSceneYML;
+          break;
             
     }
 
@@ -156,6 +329,7 @@ export class Application{
 
   }
   async scene1(scene:Scene){
+    console.log("Running Scene 1");
     scene.AddPonctualLight(new PontualLight([0,-2,2],))   
     scene.AddPonctualLight(new PontualLight([-2,-0,2],))   
     this.addFloor(scene, Transform.fromPipe(
@@ -310,7 +484,7 @@ export class Application{
     this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
     this.scene.camera.RotateOriginZ(-40)
     this.scene.camera.RotateZ(-40)
-    
+    console.log("Scene", this.scene);
   }
   async addSphere(scene: Scene, transform:Transform = new Transform(), material:Material = new PhongMaterial([1,0,0],[1,1,1], 20, "sphere")) {
     //scaleMat(mat, [1,0,]);
@@ -407,8 +581,8 @@ export class Application{
     const v1 = add2(o,e1);
     return [o,v1,add2(v1,e2), add2(o,e2)]
   }
-  async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform()) {
-    const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
+  async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform(), material2 = new PhongMaterial([0,1,1],[1,1,1],20)) {
+    //const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
     //const material2 = new PhongMetal(new PhongMaterial([0,1,1],[1,1,1],20),0);
     //const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
     //await material2.waitLoad()

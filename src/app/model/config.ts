@@ -21,9 +21,21 @@ export const RANDOM_SAMPLE = true ;
 export const DEFAULT_LIGHT_SAMPLE_COUNT = FAST?2:4 ;
 export const DEFAULT_AREA_SAMPLE_COUNT = 1 ;
 export const LIMITS = [0.69,0.68, 0.15, 0.16];
+/**
+ * Force a Simulation of A hit occurring
+ */
 export const FORCCE_HIT = false
+/**
+ * Force Interaction Hit Level
+ */
 export const FORCCE_HIT_LEVEL = -1
+/**
+ * Render the Miss direction when miss occurs
+ */
 export const FORCCE_MISS_DIRECTION = false
+/**
+ * Force a Ray Hit on Vertex to test hits
+ */
 export const FORCCE_HIT_ON_VERTEX = false
 
 export const NO_BETA_DECAY = false
@@ -34,6 +46,9 @@ export const FORCE_END_COLORS = false
 export const FORCCE_RAY_HIT_MAT_CODE = -1
 export const IGNORE_MIRROR_BDRF = false
 export const FORCE_MIRROR_BDRF = false
+/**
+ * Debug Test Context to monitor tests status
+ */
 export const DEBUG_CONTEXT = false
 export const FORCCE_HIT_OCL_MAT_CODE = false
 export const FORCE_HIDE_REFLECTION = false

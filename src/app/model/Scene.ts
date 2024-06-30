@@ -2,7 +2,8 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, calculateHitCode, createMat4, cross, debugSample, debugSample2, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
 import * as utils from "./utils";
-import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_OCL_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import * as Config from "./config";
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, LightSample, PontualLight } from "./Light";
 import { Transform, scale } from "./Transform";
@@ -471,17 +472,20 @@ export class Scene {
         //return;
         var out = await this.pipelineRenderProcessor(samples,
             
+            //Ray Generation Function
             (s:number, context:PipelineContext)=>{context.sample=samples[s];return this.camera.GenerateRay(context.sample)},
             
+            //Intersection Callback
             async (ray:Ray, context:PipelineContext)=>{
                 //console.log("Intersection");
-                let cxt = DEBUG_CONTEXT?{}:undefined;
+                let cxt = Config.DEBUG_CONTEXT?{}:undefined;
                 var hits = this.ComputeIntersection(ray,true,true, true, cxt);
                 context.testContext =cxt
                 //await this.Sync(samples.length);
                 return hits;
             },
 
+            //On Ray Hit
             (intr:Interaction, context:PipelineContext)=>{  
                 let hit = intr.hit!
                 let L_Step:vec3=[0,0,0]   
@@ -588,6 +592,7 @@ export class Scene {
                 }
             },
             
+            //On Ray Miss
             (context:PipelineContext)=>{
                 console.log("Miss", context);
                 if(FORCCE_MISS_DIRECTION) 
@@ -773,7 +778,7 @@ export class Scene {
             }
             //let ray = createRay(add2(hitOrigin.p, utils.scale(hitOrigin.n,EPSILON)), ray.direction);
             let hitA = this.ComputeIntersection(ray, true, true, true);
-            let hit = hitA ? hitA[0].hit : undefined;
+            let hit = hitA ? hitA[0]?.hit : undefined;
             if (hit?.t??1 > 0.0001)
             {
                 //hit = hitA[1];
