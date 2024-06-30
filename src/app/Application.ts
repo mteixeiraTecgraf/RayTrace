@@ -8,8 +8,9 @@ import { COLOR, VECS, add2, scale as scaleVec } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { bufferTime, map, filter, tap} from 'rxjs/operators';
 import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
-import { DEFAULTPROGRESS, ProgressAction, createPrimitive, createTPrimitive, createTransformed } from './model/Primitive';
+import { createPrimitive, createTPrimitive, createTransformed } from './model/Primitive';
 import { YamlParser } from './model/YamlParser';
+import { DEFAULT_RENDER_OPTIONS, RenderOptions } from './model/Scene'
 
 function hexToRgbVector(hex: string): vec3 {
   // Remove the hash at the start if it's there
@@ -190,25 +191,37 @@ export class Application{
   W = RESOLUTION[0];
   H = RESOLUTION[1];
   angle = ANGLE;
+  cancel = false;
+  requestCancel(){
+    this.cancel=true
+  }
+  clearCancel(){
+    this.cancel = false;
+  }
   initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1){
     return new Observable<{i:number,j:number}>(a=>{
-        this._initScene(ctx, sceneNumber, {progress:(i,j)=>{
+        this._initScene(ctx, sceneNumber, {
+          progress:(i,j)=>{
+            console.log("Progress", i, j)
             if((i*1000/j)%(PERCENTUAL_STEP*10) == 0)
             {
                 a.next({i,j});
-  }
+            }
             if(i===j)
             {     
                 console.log("complete")
                 a.complete()
             }
-        }})
+          },
+          cancel:()=>this.cancel
+      }
+      )
     })
   }
   reset(){
-    
+    (this.scene as any) = undefined;
   }
-  _initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1,o:{progress:ProgressAction} = {progress:DEFAULTPROGRESS}, cont=true){
+  _initScene(ctx :CanvasRenderingContext2D[], sceneNumber:number = 1,options:RenderOptions = DEFAULT_RENDER_OPTIONS, cont=true){
     //const W = this.ctx.canvas.width;
     //const H = this.ctx.canvas.height;
     if(false)
@@ -260,14 +273,20 @@ export class Application{
             sceneFunction = this.scene2;
             break;
         case 3:
-            sceneFunction =  this.scene2Mirror;
+            sceneFunction =  this.scene3;
             break;
         case 4:
-            sceneFunction =  this.scene2Mirror2;
+            sceneFunction =  this.scene4;
             break;
         case 5:
             sceneFunction =  this.scene5;
             break;
+          case 6:
+              sceneFunction =  this.scene2Mirror;
+              break;
+          case 7:
+              sceneFunction =  this.scene2Mirror2;
+              break;
         case -1:
           sceneFunction = this.testLoadSceneYML;
           break;
@@ -278,16 +297,30 @@ export class Application{
     if(sceneFunction)
     {
         sceneFunction = sceneFunction.bind(this)
-        from(sceneFunction(this.scene)).subscribe(()=>{
-            //await this.bunnysceneSimple(scene);
-            if(first)this.scene.prepareScene();
-                
-            this.scene.Render(o);
-            this.scene.ReportComputations();
+        from(sceneFunction(this.scene)).subscribe({
+          next:()=>{
+            try{
 
-            this.scene.Film.currentCount=this.scene.Film.sampleCount;
+              //await this.bunnysceneSimple(scene);
+              if(first)this.scene.prepareScene();
+              
+              this.scene.Render(options);
+              this.scene.ReportComputations();
+              
+              this.scene.Film.currentCount=this.scene.Film.sampleCount;
+            }
+            catch(err){
+              console.error("Subscription Error", err);
+              options.progress(100,100);
+            }
 
-        })
+        },
+        error:err=>{
+          console.error("Subscription Error", err);
+          options.progress(100,100);
+
+        }
+      })
     }
     //subj.unsubscribe();
   }

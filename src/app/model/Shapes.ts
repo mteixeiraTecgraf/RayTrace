@@ -1,7 +1,8 @@
 import { vec2, vec3 } from "gl-matrix";
 import { EPSILON, Hit, Interaction, Ray, calculatePoint, createHit, createRay } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
-import { FORCCE_HIT, FORCCE_HIT_ON_VERTEX } from "./config";
+import { FORCCE_HIT_ON_VERTEX } from "./config";
+import * as Config from "./config";
 import { GPU } from "gpu.js";
 
 export abstract class Shape {

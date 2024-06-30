@@ -24,7 +24,7 @@ export const LIMITS = [0.69,0.68, 0.15, 0.16];
 /**
  * Force a Simulation of A hit occurring
  */
-export const FORCCE_HIT = false
+export var FORCCE_HIT = false
 /**
  * Force Interaction Hit Level
  */
@@ -39,8 +39,8 @@ export const FORCCE_MISS_DIRECTION = false
 export const FORCCE_HIT_ON_VERTEX = false
 
 export const NO_BETA_DECAY = false
-export const FORCCE_HIT_MAT_CODE = false
-export const RENDER_PDF = false
+export var FORCCE_HIT_MAT_CODE = false
+export var RENDER_PDF = false
 export const RENDER_BETA_LEN = false
 export const FORCE_END_COLORS = false
 export const FORCCE_RAY_HIT_MAT_CODE = -1
@@ -52,8 +52,8 @@ export const FORCE_MIRROR_BDRF = false
 export const DEBUG_CONTEXT = false
 export const FORCCE_HIT_OCL_MAT_CODE = false
 export const FORCE_HIDE_REFLECTION = false
-export const FORCCE_NORMAL = false
-export const FORCCE_L_HIT = false
+export var FORCCE_NORMAL = false
+export var FORCCE_L_HIT = false
 export const FORCCE_L_HIT_N = false
 export const FORCCE_LI_HIT = false
 export const FORCCE_LI_MAT = false

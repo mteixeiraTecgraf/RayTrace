@@ -2,9 +2,10 @@ import { vec3 } from "gl-matrix";
 import { BSDF, EPSILON, Hit, Interaction, createRay } from "./Primitive";
 import { Scene } from "./Scene";
 import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
-import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_NORMAL, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
+import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
 import { Sample, Sampler } from "./Sampler";
+import * as Config from "./config";
 
 
 export interface MaterialSample extends Sample{type:"Material"}
@@ -92,7 +93,7 @@ export class PhongMaterial extends Material{
         let v:vec3 = normalize(sub2(origin, hit!.p))
         var n = normalize(hit!.n??[0,1,0]);
         
-        if(FORCCE_NORMAL) {
+        if(Config.FORCCE_NORMAL) {
             var r = n.map(v=>Math.abs(v));
             //var r = n.map(v=>-(v));
             return <vec3>r;
@@ -179,6 +180,7 @@ export class PhongMaterial extends Material{
         }
         if(FORCCE_LI_HIT)
         {
+            //console.log("Force Hit Mart C", c1, li);
             var r2 = li.map(v=>Math.abs(v));
             this.checkResult = add2(c1, <vec3>r2);
             return true;

@@ -2,12 +2,12 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, calculateHitCode, createMat4, cross, debugSample, debugSample2, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
 import * as utils from "./utils";
-import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT, FORCCE_HIT_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_NORMAL, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
+import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
 import * as Config from "./config";
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, LightSample, PontualLight } from "./Light";
 import { Transform, scale } from "./Transform";
-import { DEFAULTPROGRESS, Hit, EntityInstance, ProgressAction, Ray, createPrimitive, createTPrimitive, Interaction, EPSILON } from "./Primitive";
+import { Hit, EntityInstance, Ray, createPrimitive, createTPrimitive, Interaction, EPSILON } from "./Primitive";
 import { IntersectionTester } from "./Tester";
 import { Camera, Film } from "./Film";
 import { interval } from "rxjs";
@@ -15,6 +15,11 @@ import { GPU } from "gpu.js";
 import { Semaphore } from "./Semaphore";
 import { Sampler } from "./Sampler";
 
+export type CancelAction = ()=>boolean
+export type ProgressAction = (i:number,total:number)=>void
+export type RenderOptions = { progress: ProgressAction, cancel:CancelAction }
+export var DEFAULTPROGRESS: ProgressAction = ()=>{}
+export const DEFAULT_RENDER_OPTIONS = { progress: DEFAULTPROGRESS, cancel: ()=>false }
 
 export class Scene {
     ReportComputations() {
@@ -35,14 +40,14 @@ export class Scene {
     prepareScene() {
         this.tester.generateStructure();
     }
-    Render({ progress }: { progress: ProgressAction } = { progress: DEFAULTPROGRESS }) {
+    Render(options:RenderOptions = DEFAULT_RENDER_OPTIONS) {
         if(PATH_PIPE)
         {
-            return this.pipelineRender({ progress });
+            return this.pipelineRender(options);
         }
         else
         {
-            return this.RenderDefault({ progress });
+            return this.RenderDefault(options);
         }
         //return this.RenderRandom(Context, {progress});
     }
@@ -76,11 +81,15 @@ export class Scene {
             }
         }
     }
-    RenderDefault({ progress }: { progress: ProgressAction } = { progress: DEFAULTPROGRESS }) {
+    RenderDefault(options:RenderOptions = DEFAULT_RENDER_OPTIONS) {
         const film = this.Film
         const count = film.sampleCount;
         //return;
 
+        if(options.cancel())
+        {
+            throw new Error("Cancelation Requested");
+        }
 
         /*
         let v = 0;
@@ -94,8 +103,10 @@ export class Scene {
        var rays = []
         for (let i = 0; i < this.W; i++) {
             //v = i;
-            progress(i, this.W);
-
+            options.progress(i, this.W);
+            if(options.cancel())    
+                throw new Error("Cancelation Requested");
+            
             //continue;
             for (let j = 0; j < this.H; j++) {
                 let cs: vec3[] = Array(film.DataLength).fill([0,0,0]).map((_,idx)=>utils.scale(film.GetPixelValue(i,j,idx),film.currentCount));
@@ -150,7 +161,7 @@ export class Scene {
             }
         }
         console.log("Rays", rays);
-        progress(this.W, this.W);
+        options.progress(this.W, this.W);
         //v = this.W;
         //s.unsubscribe();
         
@@ -233,7 +244,7 @@ export class Scene {
         let q = 0.5;
         let previousPDF = 0;
         let specular = false;
-        for ( let i = 0; i<10;i++) {
+        for ( let i = 0; i<2;i++) {
             
             let L_Step = utils.VECS.ZERO;
             if(debugSample(this))console.log("TracePath",this.sample,i, dMax,FORCCE_RAY_HIT_MAT_CODE,i)
@@ -279,7 +290,7 @@ export class Scene {
                 let p = interaction.p;
                 let n = normalize(interaction.n)
 
-                
+                //if (this.afterMatEvalCheck(hit, ray)) return this.checkResult;
                 //L = [0,0,0];
                 var N = 1;
                 //for(var ns = 0 ; ns<N;ns++){
@@ -440,7 +451,7 @@ export class Scene {
         var out = kernel2(true);
         console.log("Kernel", out)
     }
-    async pipelineRender({ progress }: { progress: ProgressAction } = { progress: DEFAULTPROGRESS })
+    async pipelineRender(options:RenderOptions = DEFAULT_RENDER_OPTIONS)
     {
         console.log("PreKernel")
         this.testKernel()
@@ -519,6 +530,11 @@ export class Scene {
                     let p = hit.p;
                     let n = normalize(hit.n)
                     let Le = this.getLightRadiance(hit, context.ray,mat)
+                    
+                    // if(this.afterRadianceCalcCheck(hitCode,c,l,n,li)){
+                    //     c = this.checkResult;
+                    //     return;
+                    // }
                     if(this.hasResult)
                     {
                         return this.checkResult;
@@ -594,7 +610,7 @@ export class Scene {
             
             //On Ray Miss
             (context:PipelineContext)=>{
-                console.log("Miss", context);
+                //console.log("Miss", context);
                 if(FORCCE_MISS_DIRECTION) 
                 {
                     var ray = context.ray
@@ -609,7 +625,7 @@ export class Scene {
             
         console.log("Rays Processed", out)
         for (let i = 0; i < this.W; i++) {
-            progress(i, this.W);
+            options.progress(i, this.W);
             for (let j = 0; j < this.H; j++) {
                 var c: vec3 = [0, 0, 0]
                 for (let s = 0; s < count; s++) {
@@ -620,10 +636,11 @@ export class Scene {
             }
         }
         console.log("Pixels Filled")
-        progress(this.W, this.W);
+        options.progress(this.W, this.W);
         this.Film.RenderImage();
         console.log("Image Rendered")
     }
+    cancel=false;
     count = 0;
     prom:Promise<void>;
     ready:()=>void
@@ -992,12 +1009,12 @@ export class Scene {
             cxt.checkResult = [hit!.p[1]/4, (hit!.p[1]<4)?0:1, 0];
             return true;
         }
-        if (FORCCE_HIT) {
+        if (Config.FORCCE_HIT) {
             cxt.checkResult = [1, 0, 0];
             return true;
         }
         
-        if(FORCCE_NORMAL)
+        if(Config.FORCCE_NORMAL)
         {
             //console.log("ForceNormal", cxt, hit)
             if(hit?.hit)

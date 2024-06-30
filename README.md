@@ -1,30 +1,26 @@
 # Raytrace
 
+Este software é uma implementação de um algoritmo de traçado de raios em um framework web, com modelagem de cena e configuração de parâmetros. O programa se enquadra na área de computação gráfica e destina-se a pessoas interessadas em entender a modelagem de um simulador físico de cenas gráficas utilizando algoritmos de traçado de raios com iluminação global e técnicas de aceleração do processo. Embora utilize uma tecnologia que pode se tornar obsoleta rapidamente, espera-se que seja uma ferramenta valiosa para a experimentação de algoritmos e aprendizado de técnicas.
+
+
 Os codigos tambem estao disponiveis em 'https://git.tecgraf.puc-rio.br/mteixeira/mestrado-raytrace.git'
 
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 15.2.4.
+## Desenvolvimento
+Este projeto é desenvolvido em [Angular CLI](https://github.com/angular/angular-cli) versao 15.2.4.
 
-## Development server
+### Angular
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+Execute `ng serve` para executar o servidor de desenvolvimento. Navegue até `http://localhost:4200/`. 
 
-## Code scaffolding
+## Executando
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+- Abra o Navegador em `http://localhost:4200/`.
+- Copie o cenario [neste Link](src/assets/Scene1.yaml)
+- Clique em Cena 1 para carregar a Cena na area Render
+- Quando Aparecer o Texto `Renderizacao Concluida`, podera ver que a renderização foi feita considerando a quantidade de samples especificadas
+- Veja em stats algumas informações acerca do tempo da renderização
 
-## Build
+## Compilação Final
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
-
-## Running unit tests
-
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+Execute `ng build` pra compilar o projeto para uma versão final de distribuição. Os artefatos serão encontrados na pasta `dist/`.

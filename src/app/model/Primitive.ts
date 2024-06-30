@@ -6,8 +6,6 @@ import { Box, Shape } from "./Shapes";
 import { Transform } from "./Transform";
 import * as utils from "./utils";
 
-export type ProgressAction = (i:number,total:number)=>void
-export var DEFAULTPROGRESS: ProgressAction = ()=>{}
 export const EPSILON = Math.pow(10,-5);
 
 export function calculatePoint(origin:vec3, direction:vec3, t:number, options:{addEps?:boolean, normalizeDirection?:boolean}={} ){

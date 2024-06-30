@@ -37,12 +37,15 @@ export class AppComponent implements OnInit{
     //this.application.initScene(this.ctx);
 
   }
+  sceneRun?:number=undefined
   runText(textBox:any){
     this.application.textBox = textBox
     console.log(textBox);
+    this.sceneRun=-1
     this.reload(-1)
   }
   reload(sceneNum:number){
+    this.sceneRun=sceneNum;
     console.log("Reload", sceneNum)
     this.totalPerf.totalCicles+=this.n;
     this.totalPerf.startWith();
@@ -68,7 +71,9 @@ export class AppComponent implements OnInit{
           //(error) => console.log('error', error),
           next:(        a: { i: number; j: number; })=>{
             
-            this.ngZone.run(()=>{this.angularzoneRefresh(a)})
+            this.ngZone.run(()=>{this.angularzoneRefresh(a);
+              this.ref.detectChanges();
+            })
               
             },
                     error:(error)=>console.error("Error", error),
@@ -81,10 +86,12 @@ export class AppComponent implements OnInit{
               this.loading=false;
               ++this.count;
               if(++this.localCount <this.n) setTimeout(run, 10)
-                      this.ref.detectChanges();
+              else this.application.clearCancel();
+              this.ref.detectChanges();
+                  
             }
           }
-            );
+      );
     }
     setTimeout(run, 10)
     
@@ -95,7 +102,7 @@ export class AppComponent implements OnInit{
   }
   angularzoneRefresh(a: any){      
     this.loading = false;
-    this.progress++;
+    //this.progress++;
         this.refresh(a)
         this.ref.detectChanges();
   }
@@ -115,9 +122,10 @@ export class AppComponent implements OnInit{
     this.perf.mark(v.i);
     {
       let perc = (v.i/v.j);
+      //console.log("perc ", this.progress)
       this.progress = (perc*100);
       let pf=this.perf.toPrint()
-      console.log("Pixel",{i:v.i, percentual:this.progress}, pf)
+      console.log("Pixel b",{i:v.i, percentual:this.progress}, pf)
       if(this.first) {
         setTimeout(()=>{
           //console.log("PerfUpdate")
@@ -156,6 +164,21 @@ export class AppComponent implements OnInit{
   }
   rotateZ(value:number){
     this.application.RotateZ(this.ctx, value)
+  }
+  Continue(){
+    if(this.sceneRun==undefined) return;
+    this.reload(this.sceneRun!);
+  }
+  Cancel(){
+    this.application.requestCancel();
+  }
+  reset(){
+    this.application.reset()
+    this.totalPerf = new PerfCount(0)
+    this.perfSummary = this.totalPerf.toPrint();
+    this.perf = new PerfCount(this.n)
+    this.count = 0
+    
   }
 
   drawCircle(){

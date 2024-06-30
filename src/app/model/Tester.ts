@@ -1,8 +1,8 @@
-import { DEFAULTPROGRESS, EPSILON, Hit, EntityInstance, ProgressAction, Ray, getT, Interaction } from "./Primitive";
+import { EPSILON, Hit, EntityInstance, Ray, getT, Interaction } from "./Primitive";
 import { Box } from "./Shapes";
 import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_LEVEL, TEST_BRUTE_FORCE } from "./config";
 import { distance, max, min, verbose, verbose3 } from "./utils";
-
+import {DEFAULTPROGRESS, ProgressAction} from './Scene'
 export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:EntityInstance}
 
 export class IntersectionTester{
