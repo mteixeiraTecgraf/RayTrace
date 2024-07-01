@@ -1,7 +1,7 @@
 import { vec3 } from "gl-matrix";
 import * as GLMat from "gl-matrix";
 //import { Scene } from "./Film";
-import { DEBUG_SAMPLE, DEBUG_SAMPLE2, REPEAT_PX, SAMPLE_DIST } from "./config";
+import { Config } from "./config";
 import { EPSILON, Ray } from "./Primitive";
 import { Scene } from "./Scene";
 
@@ -258,10 +258,10 @@ export function absdist(n:number, n2:number, delta=EPSILON){
 }
 
 export function debugSample(scene:{sample:GLMat.vec2}):boolean{
-    return DEBUG_SAMPLE && absdist(scene.sample[0],DEBUG_SAMPLE[0], SAMPLE_DIST) && absdist(scene.sample[1], DEBUG_SAMPLE[1], SAMPLE_DIST);
+    return Config.DEBUG_SAMPLE && absdist(scene.sample[0],Config.DEBUG_SAMPLE[0], Config.SAMPLE_DIST) && absdist(scene.sample[1], Config.DEBUG_SAMPLE[1], Config.SAMPLE_DIST);
 }
 export function debugSample2(scene:{sample:GLMat.vec2}):boolean{
-    return DEBUG_SAMPLE2 && scene.sample[0] == DEBUG_SAMPLE[0] && scene.sample[1]==DEBUG_SAMPLE[1]
+    return Config.DEBUG_SAMPLE2 && scene.sample[0] == Config.DEBUG_SAMPLE[0] && scene.sample[1]==Config.DEBUG_SAMPLE[1]
 }
 const factor = 2;
 const factor2 = 4;
@@ -277,20 +277,20 @@ export const setPixel = (myImageData:any, x:number, y:number, width:number, heig
     const [redIndex, greenIndex, blueIndex, alphaIndex] = colorIndices;
     //film->SetPixelValue(i, j, glm::vec3(1.0f, 0.0f, 0.0f));
 
-    for(let j = 0; j<REPEAT_PX; ++j)
+    for(let j = 0; j<Config.REPEAT_PX; ++j)
     {
-        for(let i = 0; i<REPEAT_PX; ++i)
+        for(let i = 0; i<Config.REPEAT_PX; ++i)
         {
-            myImageData.data[redIndex+(i*4)+ (j*width*REPEAT_PX*4)] = r;
-            myImageData.data[greenIndex+(i*4)+j*width*REPEAT_PX*4] = g;
-            myImageData.data[blueIndex+(i*4)+j*width*REPEAT_PX*4] = b;
-            myImageData.data[alphaIndex+(i*4)+j*width*REPEAT_PX*4] = a;
+            myImageData.data[redIndex+(i*4)+ (j*width*Config.REPEAT_PX*4)] = r;
+            myImageData.data[greenIndex+(i*4)+j*width*Config.REPEAT_PX*4] = g;
+            myImageData.data[blueIndex+(i*4)+j*width*Config.REPEAT_PX*4] = b;
+            myImageData.data[alphaIndex+(i*4)+j*width*Config.REPEAT_PX*4] = a;
         }
     }
   }
   
   export  const getColorIndicesForCoord = (x:number, y:number, width:number, hasAlpha:boolean = true) => {
     const idxMul = hasAlpha?4:3
-    const red = y * REPEAT_PX * (width* REPEAT_PX * idxMul) + x * REPEAT_PX  * idxMul;
+    const red = y * Config.REPEAT_PX * (width* Config.REPEAT_PX * idxMul) + x * Config.REPEAT_PX  * idxMul;
     return [red, red + 1, red + 2, red + 3];
   };

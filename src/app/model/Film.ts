@@ -2,7 +2,8 @@ import { vec2, vec3, vec4 } from "gl-matrix";
 import * as GLMat from  "gl-matrix";
 import { add2, createMat4, inverse, normalize, saveCanvasAs, setPixel, sub2, toVec3, toVec4, verbose,  } from "./utils";
 
-import { CONFIG_NAME, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, SAVE_FILE } from "./config";
+import { Config } from "./config";
+var { CONFIG_NAME, RANDOM_SAMPLE, REPEAT_PX, SAMPLE_COUNT, SAVE_FILE } = Config;
 
 import { Ray, RayGenerator } from "./Primitive";
 import { Sampler } from "./Sampler";
@@ -47,16 +48,21 @@ export class Film{
         //return [(i+this.GetRandom())/this.W, (j+this.GetRandom())/this.H];
         return [Math.floor(i *this.W), Math.floor(j*this.H)];
     }
-    public static Make(resolution: vec2, value:number, ctx:CanvasRenderingContext2D[])
+    public static Make(resolution: vec2, value:number, ctx:CanvasRenderingContext2D[] = [])
     {
-        var dataArray = new Array(ctx.length).fill([]).map(_=>new Array(resolution[0]).fill([]).map(() => new Array(resolution[1]).fill([]).map(()=><vec3>[value,value,value])))
+        var dataArray = new Array(ctx?.length??1).fill([])
+        .map(_=>
+            new Array(resolution[0]).fill([]).map(() => 
+            new Array(resolution[1]).fill([]).map(()=>
+                
+                <vec3>[value,value,value])))
         return new Film(resolution, dataArray, ctx);
         //var a:vec2 = []
     }
     get DataLength(){
         return this.Data.length;
     }
-    constructor(public Resolution:vec2, public Data:vec3[][][], public Context:CanvasRenderingContext2D[] ){}
+    constructor(public Resolution:vec2, public Data:vec3[][][], public Context:CanvasRenderingContext2D[] = [] ){}
 
     GetPixelValue(i_idx:number,j:number,idx:number = 0){
         return this.Data[idx][i_idx][j]

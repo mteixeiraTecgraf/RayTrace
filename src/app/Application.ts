@@ -1,9 +1,8 @@
 import { Component, ElementRef, Injectable, OnInit, ViewChild } from '@angular/core';
 import { vec3 } from 'gl-matrix';
-import { AMBIENT_LIGHT, AreaLight, CONFIG_HIGHLIGHT, Camera, Film, Light, MatrixPipeAction, PERCENTUAL_STEP, PontualLight, SAMPLE_COUNT, Scene, Shape, Transform, rotate, rotateVec, scale, translate } from './model';
+import { Config, AreaLight, Camera, Film, Light, MatrixPipeAction, PontualLight, Scene, Shape, Transform, rotate, rotateVec, scale, translate } from './model';
 import { Box, Plane, Sphere, Vertex } from './model';
 import { Material, PhongMaterial, PhongMetal, PhongDieletrics, TextureMaterial } from './model';
-import { ANGLE, REPEAT_PX, RESOLUTION } from './model';
 import { COLOR, VECS, add2, scale as scaleVec } from './model/utils';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { bufferTime, map, filter, tap} from 'rxjs/operators';
@@ -11,6 +10,7 @@ import { Observable, Subscription, Subject, firstValueFrom, from } from 'rxjs';
 import { createPrimitive, createTPrimitive, createTransformed } from './model/Primitive';
 import { YamlParser } from './model/YamlParser';
 import { DEFAULT_RENDER_OPTIONS, RenderOptions } from './model/Scene'
+
 
 function hexToRgbVector(hex: string): vec3 {
   // Remove the hash at the start if it's there
@@ -32,6 +32,16 @@ function hexToRgbVector(hex: string): vec3 {
 })
 export class Application{
   textBox: string
+  async configByYML() {
+    
+    var sceneContent = YamlParser.parseYaml(this.textBox)
+    if(sceneContent.CONFIG.resolution)
+    {
+      this.W = sceneContent.CONFIG.resolution.W  
+      this.H = sceneContent.CONFIG.resolution.H  
+    }
+    Config.FORCCE_HIT_MAT_CODE = sceneContent.CONFIG.render_Material_Color;
+  }
   async testLoadSceneYML(scene:Scene) {
     console.log("Loading Scene Yaml ")
     var sceneContent = YamlParser.parseYaml(this.textBox)
@@ -155,7 +165,12 @@ export class Application{
       }
     }
     )
-    
+    if(sceneContent.CONFIG.resolution)
+    {
+      this.W = sceneContent.CONFIG.resolution.W  
+      this.H = sceneContent.CONFIG.resolution.H  
+    }
+
     function isValidOp(v:any): v is{x: number,y: number,z: number} {
       return (v as {x: number,y: number,z: number}).x!=undefined
     }
@@ -188,9 +203,9 @@ export class Application{
     }
     
   scene:Scene;
-  W = RESOLUTION[0];
-  H = RESOLUTION[1];
-  angle = ANGLE;
+  W = Config.RESOLUTION[0];
+  H = Config.RESOLUTION[1];
+  angle = Config.ANGLE;
   cancel = false;
   requestCancel(){
     this.cancel=true
@@ -203,7 +218,7 @@ export class Application{
         this._initScene(ctx, sceneNumber, {
           progress:(i,j)=>{
             console.log("Progress", i, j)
-            if((i*1000/j)%(PERCENTUAL_STEP*10) == 0)
+            if((i*1000/j)%(Config.PERCENTUAL_STEP*10) == 0)
             {
                 a.next({i,j});
             }
@@ -231,10 +246,13 @@ export class Application{
       this.angle = 10;
       
     }
+    if(sceneNumber<0){
+      this.configByYML();
+    }
     ctx.forEach(cv=>
       {
-        cv.canvas.width = this.W*REPEAT_PX
-        cv.canvas.height = this.H*REPEAT_PX
+        cv.canvas.width = this.W*Config.REPEAT_PX
+        cv.canvas.height = this.H*Config.REPEAT_PX
       }
     )
     console.log("testImage", this.W, this.H);
@@ -247,7 +265,7 @@ export class Application{
       //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
       //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
-      var ambLightPot = AMBIENT_LIGHT;
+      var ambLightPot = Config.AMBIENT_LIGHT;
       //var dz = 1;
       var u:vec3 = [1,0,0],v:vec3=[0,0,1], w:vec3=[0,-1,0]
       var camera = new Camera([0,0,0,],u,v,w,this.angle, 1, this.W/this.H );
@@ -257,7 +275,7 @@ export class Application{
     }
     else{
       //double = true;
-      this.scene.Film.sampleCount+=SAMPLE_COUNT;
+      this.scene.Film.sampleCount+=Config.SAMPLE_COUNT;
     }
     console.log("Scene", this.scene);
     //this.prepareSimpleLightBackBoxScene(scene);
@@ -374,7 +392,7 @@ export class Application{
     scene.camera.RotateX(-10);    
     scene.camera.addToOrigin([0,-2.0,1.5,])
   }
-  async scene2(scene:Scene, factor=CONFIG_HIGHLIGHT?16:64){
+  async scene2(scene:Scene, factor=Config.CONFIG_HIGHLIGHT?16:64){
     this.addBox(scene, 
       //Transform.fromScaleAndTranslation([-1.5,0.8,0],1,1,1.8)
       Transform.fromPipe(scale([0.6,0.6,0.6]), rotate(-50,"z"),translate([0.3,1.4,0])),
@@ -403,7 +421,7 @@ export class Application{
     this.scene.camera.RotateZ(-40)
     this.scene.camera.RotateOriginX(30)
     this.scene.camera.RotateX(30)
-    this.scene2(scene,CONFIG_HIGHLIGHT?16:64);
+    this.scene2(scene,Config.CONFIG_HIGHLIGHT?16:64);
     
     return;
   }
@@ -414,7 +432,7 @@ export class Application{
     this.scene.camera.RotateZ(30)
     this.scene.camera.RotateOriginX(-15)
     this.scene.camera.RotateX(-15)
-    this.scene2(scene,CONFIG_HIGHLIGHT?16:64);
+    this.scene2(scene,Config.CONFIG_HIGHLIGHT?16:64);
     
     return;
   }
@@ -489,9 +507,9 @@ export class Application{
     //await this.addTorus(scene);
   }
   async scene4(scene:Scene){
-    scene.camera.addToOrigin([0,-2.0,1.2,])
+    //scene.camera.addToOrigin([0,-2.0,1.2,])
     scene.camera.RotateX(-32.3);
-    scene.camera.angle = 20;
+    scene.camera.angle = 90;
     this.boxSceneBase(scene);
     this.addFloor(scene, Transform.fromPipe(
         translate([-0.5,-0.5,-1]),
@@ -500,13 +518,13 @@ export class Application{
     this.addSphere(scene, Transform.fromScaleAndTranslation([1,0,0.6],0.6,0.6,0.6), new PhongMetal(new PhongMaterial([1,0.6,0.6]), 0.2, "sphere"));
     await this.addBunny(scene,"bunny_simple2.off");
     this.addSphere(scene, Transform.fromPipe(scale([0.2,0.2,0.2])))
-    this.scene.camera.RotateOriginZ(-40)
-    this.scene.camera.RotateZ(-40)
+    //this.scene.camera.RotateOriginZ(-40)
+    //this.scene.camera.RotateZ(-40)
   }
   async scene5(scene:Scene){
-    scene.camera.addToOrigin([0,-2.0,1.2,])
+    //scene.camera.addToOrigin([0,-2.0,1.2,])
     scene.camera.RotateX(-32.3);
-    scene.camera.angle = 15;
+    scene.camera.angle = 90;
     this.boxSceneBase(scene);
     this.addFloor(scene, Transform.fromPipe(
         translate([-0.5,-0.5,-1]),
@@ -840,7 +858,7 @@ export class Application{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0,[ctx]);
+    var film = Film.Make([this.W* Config.REPEAT_PX ,this.H* Config.REPEAT_PX ], 0,[ctx]);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))
@@ -873,7 +891,7 @@ export class Application{
     console.log("testImage", this.W, this.H);
     //return;
 
-    var film = Film.Make([this.W* REPEAT_PX ,this.H* REPEAT_PX ], 0,[ctx]);
+    var film = Film.Make([this.W* Config.REPEAT_PX ,this.H* Config.REPEAT_PX ], 0,[ctx]);
     //var camera = new Camera([0,0,0,],[1,0,0],[0,0,1], [0,-1,0],90, 800, W/H )
 
     //console.log("Pixel", camera.ToCameraPosition([0,2,0]))

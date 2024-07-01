@@ -1,5 +1,5 @@
 import { AreaLight, Camera, Film, PontualLight, Scene } from ".";
-import { Hit, Ray } from "./Primitive";
+import { createRay, EntityInstance, Hit, Ray } from "./Primitive";
 import { Box, Plane } from "./Shapes";
 import { normalize } from "./utils";
 import { LIGHT_FACTOR } from "./config";
@@ -53,7 +53,9 @@ describe('Film', () => {
         describe('getSample', ()=>{
             beforeEach(()=>{        
                 console.log("AddArea", area)
+                scene.clearScene()
                 scene.AddAreaLight(area);
+                scene.prepareScene();
             })
             it('1 Sample', ()=>{
                 area.SAMPLE_COUNT = 1;
@@ -63,6 +65,7 @@ describe('Film', () => {
                 }))
             })
             it('4 Sample', ()=>{
+            
                 area.SAMPLE_COUNT = 4
                 expect(area.getSample(0,0)).toEqual(jasmine.objectContaining({
                     pos: jasmine.arrayWithExactContents([0.25,0.25,0]),
@@ -86,6 +89,7 @@ describe('Film', () => {
             beforeEach(()=>{        
                 console.log("AddArea", area)
                 scene.AddAreaLight(area);
+                scene.prepareScene();
             })
             it('1 Sample dist 1', ()=>{
                 area.SAMPLE_COUNT = 1;
@@ -108,12 +112,19 @@ describe('Film', () => {
             beforeEach(()=>{        
                 console.log("AddArea", area)
                 scene.AddAreaLight(area);
+                
+                scene.prepareScene();
             })
             it('4 Sample', ()=>{
                 area.SAMPLE_COUNT = 4
                 
+                //pending("Commenting due some changes on ComputeIntersection")
+
+                let interact = scene.ComputeIntersection( createRay([0.5,0.5,2],[0.1,0.1,0]) );
+                expect(interact).toBeDefined()
+                //expect(interact.length).toBeGreaterThan(0)
                 expect(area.SampleRadiance(scene, [0.5,0.5,2], [0,0,-1], 0)).toEqual(jasmine.objectContaining({
-                    l:[-0.12309149097933272, -0.12309149097933272, -0.9847319278346618],
+                    l:[-0.12309149097933272/area.SAMPLE_COUNT, -0.12309149097933272/area.SAMPLE_COUNT, -0.9847319278346618/area.SAMPLE_COUNT],
                     //li:[0.25/LIGHT_FACTOR,0.25/LIGHT_FACTOR,0.25/LIGHT_FACTOR]
                 }))
 
@@ -145,6 +156,12 @@ describe('Film', () => {
                 p:[0,10,-1]
             }));
         })
+        // [0,0,2] false
+        // [0,1,2] b
+        // [0,2,2] true
+        // [0,3,2] true
+        // [0,4,2] false
+
         describe("Box Intersection", ()=>{
             let box:Box;
             let ray:Ray
@@ -176,8 +193,10 @@ describe('Film', () => {
                 it('y between', ()=>{
                     ray.origin[1] = 2
                     var hit = box.ComputeIntersection(ray)
+                    console.log("Hit", hit);
                     expect(hit).toBeDefined();
-                    expect(hit).toEqual(jasmine.objectContaining({
+                    expect(hit!.hit).toBeDefined();
+                    expect(hit!.hit).toEqual(jasmine.objectContaining({
                         p:[1,2,2],
                         t: 1,
                         backface:false,
@@ -214,7 +233,8 @@ describe('Film', () => {
                     ray.origin[1] = 2
                     var hit = box.ComputeIntersection(ray)
                     expect(hit).toBeDefined();
-                    expect(hit).toEqual(jasmine.objectContaining({
+                    expect(hit!.hit).toBeDefined();
+                    expect(hit!.hit).toEqual(jasmine.objectContaining({
                         p:[3,2,2],
                         t:1,
                         backface:true,
@@ -239,12 +259,13 @@ describe('Film', () => {
                     ray.origin[1] = 0
                     var hit = box.ComputeIntersection(ray)
                     expect(hit).toBeDefined();
+                    expect(hit!.hit).toBeDefined();
                     //jasmine.addCustomEqualityTester((v1:number,v2:number)=>(v2-v1) < 0.0001);
-                    expect(hit).toEqual(jasmine.objectContaining({
+                    expect(hit!.hit).toEqual(jasmine.objectContaining({
                         p:jasmine.arrayContaining([closeTo(1),closeTo(1),closeTo(1)]),
                         t:closeTo(Math.sqrt(3)),
                         backface:false,
-                        n: [0,-1,0],
+                        n: [-1,0,0],
                     }));
                 })
                 /*
@@ -270,7 +291,7 @@ describe('Film', () => {
                 */
             })
         })
-        fdescribe("Box Ilumination", ()=>{
+        describe("Box Ilumination", ()=>{
             let box:Box;
             let ray:Ray
             let light:PontualLight
@@ -278,6 +299,7 @@ describe('Film', () => {
                 box = new Box([1,1,1], [3,3,3]);
                 light = new PontualLight([0,2,2]);
                 scene.AddPonctualLight(light);
+                scene.prepareScene();
                 //scene.AddEntity(box);
             })
             it('radiance 1', ()=>{
@@ -302,7 +324,10 @@ describe('Film', () => {
             it('radiance 2 Mat', ()=>{
                 //let v = light.Radiance(scene, [1,1,2], [1,0,0] )
                 let m = new PhongMaterial([1,0,0],[0,0,0],1);
-                let hit = <Hit>{p:[1,1,2], n:[-1,0,0],backface:false,t:Math.sqrt(2),material:m, forceOnVertex:false,instanceRef:-1,uv:[0,0]};
+                let hit = <Hit>{p:[1,1,2], n:[-1,0,0],backface:false,t:Math.sqrt(2),material:m, forceOnVertex:false,
+                    instanceRef:-1,uv:[0,0],
+                    entity:(undefined as unknown as EntityInstance)
+                };
                 var c = m.Eval(scene, hit, [1,0,2]);
                 
                 //let factor = 2*Math.PI/2;

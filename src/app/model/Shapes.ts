@@ -1,8 +1,8 @@
 import { vec2, vec3 } from "gl-matrix";
 import { EPSILON, Hit, Interaction, Ray, calculatePoint, createHit, createRay } from "./Primitive";
 import { add2, closeTo, cross, distance, divide, dot, length, max, min, normalize, scale, sollution, sub2, triple, verbose } from "./utils";
-import { FORCCE_HIT_ON_VERTEX } from "./config";
-import * as Config from "./config";
+
+import { Config } from "./config";
 import { GPU } from "gpu.js";
 
 export abstract class Shape {
@@ -398,8 +398,10 @@ export class Box implements Shape{
             tn1 = Math.min(tn1, tf);
             h[0] = (tn0==tn)?i:h[0];
             h[1] = (tn1==tf)?3+i:h[1];
-            if(tn0>tn1)
-                return;
+            if(tn0>tn1){
+                //throw Error("Invalid nears found");
+                return
+            }
             
 
         }
@@ -478,6 +480,7 @@ export class Box implements Shape{
             this.SuccessCount++;
             
             //console.log("CloseTo",p, this.bMin, this.bMax, n )
+            //console.log("Creating Interaction for", {p,n,t})
             return Interaction.fromRayAndHit(ray, createHit({p,n,t, backface: tmin <= 0,},
             {
                 context:{
@@ -549,7 +552,7 @@ export class Vertex implements Shape{
         let p = add2(ray.origin, scale(d, t))
         
         return Interaction.fromRayAndHit(ray,createHit({p,n,t, backface},{
-            forceOnVertex:FORCCE_HIT_ON_VERTEX,
+            forceOnVertex:Config.FORCCE_HIT_ON_VERTEX,
             uv:[u,v]
         }))
         

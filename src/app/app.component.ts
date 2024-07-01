@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, NgZo
 
 import { Subject, from, interval, startWith, timer } from 'rxjs';
 import { Application } from './Application';
-import { NUM_CICLES } from './model';
+import { Config } from "./model";
+var { NUM_CICLES } = Config;
 
 
 @Component({

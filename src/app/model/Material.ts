@@ -2,11 +2,11 @@ import { vec3 } from "gl-matrix";
 import { BSDF, EPSILON, Hit, Interaction, createRay } from "./Primitive";
 import { Scene } from "./Scene";
 import { COLOR, VECS, abs, add2, calculateHitCode, debugSample, distance, dot, getColorIndicesForCoord, length, minus, mul, normalize, reflect, sampleBetween2, scale, setVerbose, sub2, verbose2, verbose3 } from "./utils";
-import { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } from "./config";
+import { Config } from "./config";
 import { BehaviorSubject, Subject, filter } from "rxjs";
 import { Sample, Sampler } from "./Sampler";
-import * as Config from "./config";
 
+var { DEBUG_SAMPLE, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_OCL_MAT_CODE, FORCCE_LI_HIT, FORCCE_LI_MAT, FORCCE_L_HIT, FORCCE_L_HIT_N, FORCE_HIDE_REFLECTION, FORCE_MIRROR_BDRF, IGNORE_MIRROR_BDRF, LIMITS, SHINESS } = Config;
 
 export interface MaterialSample extends Sample{type:"Material"}
 function createSample(s:vec3,pdf:number, n:vec3, wi:vec3):MaterialSample{return {s,pdf, n, wi, type:"Material"}}

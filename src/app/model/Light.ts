@@ -2,9 +2,10 @@ import { vec3 } from "gl-matrix";
 import { Scene } from "./Scene";
 import { distance, normalize, add2, add3, sub2, dot, minus, cross, length } from "./utils";
 import * as utils from "./utils";
-import { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT_OCL_MAT_CODE, LIGHT_FACTOR } from "./config";
+import { Config } from "./config";
 import { EntityInstance, Hit, Interaction, createRay } from "./Primitive";
 import { Sample } from "./Sampler";
+var { DEFAULT_AREA_SAMPLE_COUNT, FORCCE_HIT_OCL_MAT_CODE, LIGHT_FACTOR } = Config;
 
 export type LightInstanceSample = {light: Light,pdf:number}
 export type LightPointSample = {s:vec3,pdf:number}
@@ -39,7 +40,7 @@ export abstract class Light{
             }
             let ray = createRay(hit2.p, l)
             var hitA = scene.ComputeIntersection(ray);
-            hit2 = hitA ? hitA[0].hit : undefined;
+            hit2 = hitA && hitA.length>0 ? hitA[0].hit : undefined;
             //console.log("ReprocessRefraction out", hit2)
         }
         return {hit:hit2, I};
@@ -65,7 +66,7 @@ export class PontualLight extends Light{
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hitA = scene.ComputeIntersection(ray);
-        var hit2 = hitA ? hitA[0].hit : undefined;
+        var hit2 = hitA && hitA.length>0 ? hitA[0].hit : undefined;
 
         var hitCode = -1;
         if(FORCCE_HIT_OCL_MAT_CODE && hit2 && hit2.instanceRef>0   )
@@ -148,7 +149,7 @@ export class AreaLight extends Light{
 
         //if(v2 || verbose2)console.log("Computing intersection with same light", p, ray);
         var hitA = scene.ComputeIntersection(ray);
-        var hit = hitA ? hitA[0].hit : undefined;
+        var hit = hitA && hitA.length>0 ? hitA[0].hit : undefined;
         //if(v2 || verbose2) console.log("Hit2", hit)
         //console.log("Radiance", ray);
         //console.log("Radiance", ray, hit);
@@ -159,6 +160,7 @@ export class AreaLight extends Light{
         /*&& (hit2?.material != this)*/
         )
         {
+            console.log("hit self")
             var r = distance(p,pos);
             //console.log("distance", r)
             var Li = utils.scale(this.Potencia,(dot(minus(l),ns)/(r*r*LIGHT_FACTOR))*this.AreaPart)
@@ -167,6 +169,7 @@ export class AreaLight extends Light{
             //console.log("Radiance", r,Li);
             return {li:Li, l:l}
         }
+        console.log("hit another", HitS)
         //if(v2 || verbose3) console.log("Hit2 Found", hit, ray, hit2, hit.light, ls)
         return {li:vec3.create(), l:vec3.create()};
     }

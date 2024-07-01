@@ -4,9 +4,11 @@ interface Config {
   scene_name: string;
   background_color: string;
   render_quality: string;
+  resolution?: { W: number; H: number};
   render_hit:boolean;
   render_normal:boolean;
   render_L_Hit:boolean;
+  render_Material_Color:boolean;
 }
 
 interface Material {

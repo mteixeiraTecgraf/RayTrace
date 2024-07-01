@@ -1,6 +1,6 @@
 import { EPSILON, Hit, EntityInstance, Ray, getT, Interaction } from "./Primitive";
 import { Box } from "./Shapes";
-import { DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, FORCCE_HIT_LEVEL, TEST_BRUTE_FORCE } from "./config";
+import { Config } from "./config";
 import { distance, max, min, verbose, verbose3 } from "./utils";
 import {DEFAULTPROGRESS, ProgressAction} from './Scene'
 export type AccNode = {box?:Box, child1?:AccNode, child2?:AccNode, instance?:EntityInstance}
@@ -12,6 +12,10 @@ export class IntersectionTester{
     {
         this.instances.push(instance);
         return;
+    }
+    clear(){
+        this.instances = []
+        this.root = {}
     }
     generateStructure(progress:ProgressAction = DEFAULTPROGRESS){
         var centroids = this.instances.map(i=>i.Centroid());
@@ -111,7 +115,7 @@ export class IntersectionTester{
     }
     Test(ray:Ray, context:any = undefined):Interaction[]{
 
-        if(TEST_BRUTE_FORCE) return this.TestForce(ray);
+        if(Config.TEST_BRUTE_FORCE) return this.TestForce(ray);
         /*
         var hit = this.root.box?.ComputeIntersection(ray);
         if(this.root.box && !hit)
@@ -142,7 +146,7 @@ export class IntersectionTester{
         if(verbose) console.log("Computing Box intersections", {ray, node, first:this.firstNodeName(node), v,d});
         var intHit = node.box?.ComputeIntersection(ray);
         
-        if(FORCCE_HIT_LEVEL>=0)
+        if(Config.FORCCE_HIT_LEVEL>=0)
         {
             return intHit?[intHit]:[];
         }

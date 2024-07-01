@@ -2,8 +2,7 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { Area, Box, Shape, Sphere } from "./Shapes";
 import { add2, add3, calculateHitCode, createMat4, cross, debugSample, debugSample2, distance, dot, getTranslation, identity, inverse, length, max, min, minus, mul, mulMat, normalize, reflect, sampleBetween, sampleBetween2, scaleMat, setPixel, setVerbose, sub2, toVec3, toVec4, transpose, verbose, verbose2, verbose3 } from "./utils";
 import * as utils from "./utils";
-import { DEBUG_CONTEXT, DEBUG_TRACE_POINT, DEBUG_TRACE_POINT_COORDS, DEFAULT_AREA_SAMPLE_COUNT, DEFAULT_LIGHT_SAMPLE_COUNT, DFIX, DMAX, FORCCE_HIT_MAT_CODE, FORCCE_HIT_ON_VERTEX, FORCCE_LIGHT_FACTOR, FORCCE_L_HIT_N, FORCCE_MISS_DIRECTION, FORCCE_RAY_HIT_MAT_CODE, FORCCE_WI_MAT, FORCE_END_COLORS, LIGHT_FACTOR, LIMITS, NO_BETA_DECAY, PATH_PIPE, PATH_TRACE, PONTUAL_LIGHT_RADIUS, RANDOM_SAMPLE, RENDER_BETA_LEN, RENDER_PDF, REPEAT_PX, SAMPLE_COUNT, TEST_BRUTE_FORCE, TRACE_RAY_RECURSION_MAX } from "./config";
-import * as Config from "./config";
+import { Config } from "./config";
 import { Material, PhongMaterial } from "./Material";
 import { AreaLight, Light, LightSample, PontualLight } from "./Light";
 import { Transform, scale } from "./Transform";
@@ -41,7 +40,7 @@ export class Scene {
         this.tester.generateStructure();
     }
     Render(options:RenderOptions = DEFAULT_RENDER_OPTIONS) {
-        if(PATH_PIPE)
+        if(Config.PATH_PIPE)
         {
             return this.pipelineRender(options);
         }
@@ -135,11 +134,11 @@ export class Scene {
                     if (verbose2) console.log("Ray", i, j, ray)
 
                     //3
-                    if(PATH_TRACE)
+                    if(Config.PATH_TRACE)
                     {
                         let testpx = false,ci=7*2,cj=15*2
                         if(testpx&&i==ci&&j==cj) setVerbose(true)
-                        var pathRes = this.TracePath(ray, DMAX)
+                        var pathRes = this.TracePath(ray, Config.DMAX)
                         setVerbose(false)
                         //console.log(pathRes)
                         if(testpx&&i==ci&&j==cj)console.log("MARK2::CS",{cs:cs.map(v=>{return <vec3>{...v}}), count:film.currentCount, sc:film.sampleCount});
@@ -173,7 +172,7 @@ export class Scene {
 
     recursionCount = 0;
     TraceRay(ray: Ray): vec3 {
-        if (this.recursionCount >= TRACE_RAY_RECURSION_MAX) return [0, 0, 0];
+        if (this.recursionCount >= Config.TRACE_RAY_RECURSION_MAX) return [0, 0, 0];
         this.recursionCount++;
 
         setVerbose(debugSample(this));
@@ -191,14 +190,14 @@ export class Scene {
         
         //setVerbose(false);
         if (hit) {
-            if (DEBUG_TRACE_POINT && distance(hit?.p ?? [0, 0, 0], DEBUG_TRACE_POINT_COORDS) < 0.04) {
+            if (Config.DEBUG_TRACE_POINT && distance(hit?.p ?? [0, 0, 0], Config.DEBUG_TRACE_POINT_COORDS) < 0.04) {
                 console.log("Hit trace", ray, hit);
                 return [0, 0, 1]
                 //console.log("Hit int", hit, thit, distance(hit?.p??[0,0,0], [2,1.5,2.9]),obj);
             }
             //console.log("Hit Some", hit);
             if (hit.light) {
-                if (FORCCE_HIT_MAT_CODE && hit.instanceRef > 0) {
+                if (Config.FORCCE_HIT_MAT_CODE && hit.instanceRef > 0) {
                     return <vec3>[0, 1, 1]
                     //return [(hit.instanceRef/4)%2,(hit.instanceRef/2)%2,hit.instanceRef%2]
                 }
@@ -224,7 +223,7 @@ export class Scene {
 
         }
 
-        if (false && sampleBetween(ray, LIMITS[0], LIMITS[1], LIMITS[2], LIMITS[3]))
+        if (false && sampleBetween(ray, Config.LIMITS[0], Config.LIMITS[1], Config.LIMITS[2], Config.LIMITS[3]))
             return [0, 0, 1];
 
         //console.log("Hit None");
@@ -247,7 +246,7 @@ export class Scene {
         for ( let i = 0; i<2;i++) {
             
             let L_Step = utils.VECS.ZERO;
-            if(debugSample(this))console.log("TracePath",this.sample,i, dMax,FORCCE_RAY_HIT_MAT_CODE,i)
+            if(debugSample(this))console.log("TracePath",this.sample,i, dMax,Config.FORCCE_RAY_HIT_MAT_CODE,i)
             Rays.push(ray);
             let interactions = this.ComputeIntersection(ray, true, !specular);
             setVerbose(false);
@@ -257,9 +256,9 @@ export class Scene {
             if (!interaction) {
                 //Lp.push(utils.VecAbs(ray.origin));
                 if(true)Lp.push(utils.COLOR.BLUE);
-                if(FORCE_END_COLORS)Lp.push(utils.VecMap(ray.origin,[-2,-0,0],[2,2,3]));
-                if(FORCE_END_COLORS)if(i==2&&ray.origin[0]>2)console.log("No Interaction", {ray,Lp, Hits,Rays})
-                if(FORCE_END_COLORS)Lp.push(utils.VecMap(ray.direction, [-1,-1,-1],[1,1,1]));
+                if(Config.FORCE_END_COLORS)Lp.push(utils.VecMap(ray.origin,[-2,-0,0],[2,2,3]));
+                if(Config.FORCE_END_COLORS)if(i==2&&ray.origin[0]>2)console.log("No Interaction", {ray,Lp, Hits,Rays})
+                if(Config.FORCE_END_COLORS)Lp.push(utils.VecMap(ray.direction, [-1,-1,-1],[1,1,1]));
                 //{L:utils.VecMap(p,[-2,-0,0],[2,2,3]),Lp}
                 //Lp.push(utils.scale(utils.VECS.ONE, ray.origin[0]/2));
                 break;
@@ -269,14 +268,14 @@ export class Scene {
             //if(hit&&i==0)Lp.push(utils.VecMap(hit.p,[-2,-0,0],[2,2,3]))
             Hits.push(interaction);
             if (light) {
-                if (DFIX<=0 && (i == 0 || specular)) {
+                if (Config.DFIX<=0 && (i == 0 || specular)) {
                     Lp.push(light.Potencia);
                     if(false)Lp.push(utils.COLOR.BLACK);
                     //if(i > 0) console.log("Luz")
                     return {L: light.Potencia, Lp};
                 }
                 else {
-                    if(FORCE_END_COLORS)Lp.push(utils.COLOR.RED);
+                    if(Config.FORCE_END_COLORS)Lp.push(utils.COLOR.RED);
 
                     break;
                 }
@@ -340,7 +339,7 @@ export class Scene {
                     //TEMP TEST RETURNS
                     {
                       
-                        if(RENDER_PDF && (i == DFIX))
+                        if(Config.RENDER_PDF && (i == Config.DFIX))
                         {
                             if(previousPDF>0.6)
                             {
@@ -355,7 +354,7 @@ export class Scene {
                             L= <vec3>[0,0,previousPDF+0.6];
                             return {L, Lp}
                         }
-                        if(RENDER_BETA_LEN && (i == DFIX))
+                        if(Config.RENDER_BETA_LEN && (i == Config.DFIX))
                         {
                             const f = 1;
                             //return utils.scale(beta,1/f)
@@ -363,7 +362,7 @@ export class Scene {
                             L= utils.sub2(beta,utils.scale(utils.VECS.ONE,subv))
                             return {L, Lp}
                         }
-                        if(i==DFIX)
+                        if(i==Config.DFIX)
                         {
                             L= L_Step;
                             return {L, Lp}
@@ -372,9 +371,9 @@ export class Scene {
                     }
 
                     if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, calcBDRF));
-                    L = DFIX<0 ? add2(L,L_Step):[0,0,0];
+                    L = Config.DFIX<0 ? add2(L,L_Step):[0,0,0];
                     {
-                        if (i==DFIX && debugSample(this)) {
+                        if (i==Config.DFIX && debugSample(this)) {
                             console.log("Trace", Le, L)
                             this.checkResult = [0, 0, 1];
                             L= <vec3>[0,0,1];
@@ -398,7 +397,7 @@ export class Scene {
                     if(false) L_Step = prob>0.5?[1,0,0]:[0,1,0];
                     //prob /= i>3?2:prob;
                     //prob = i>2?prob:1
-                    if(!specular&& (this.sampler.get1D() < prob) && !NO_BETA_DECAY)
+                    if(!specular&& (this.sampler.get1D() < prob) && !Config.NO_BETA_DECAY)
                     {
 
                         //Lp.push(utils.COLOR.RED);
@@ -421,7 +420,7 @@ export class Scene {
                         break;
                     }
                     beta = utils.scale(beta,1/prob);
-                    if(NO_BETA_DECAY) beta = utils.VECS.ONE;
+                    if(Config.NO_BETA_DECAY) beta = utils.VECS.ONE;
                     ray = interaction.SpawnRayToDirection(wi);
                     if(false) L_Step = utils.VecAbs(normalize(ray.direction))
                     if(false) L_Step = utils.COLOR.RED
@@ -509,7 +508,7 @@ export class Scene {
                 }                        
                 let light = hit.light;
                 if (light) {
-                    if (DFIX<=0 && context.pathIndex == 0) {
+                    if (Config.DFIX<=0 && context.pathIndex == 0) {
                         context.stop = true;
                         return light.Potencia;
                     }
@@ -542,7 +541,7 @@ export class Scene {
                     let calcBDRF = mat.BDRF(hit, context.ray.origin);
                     L_Step = add2(L_Step, mul(mul(Le, calcBDRF), context.beta))
                     if(utils.sqrLen(this.ambientLight)>0) L_Step = add2(L_Step,mul(this.ambientLight, calcBDRF));
-                    if(RENDER_PDF && (context.pathIndex == DFIX))
+                    if(Config.RENDER_PDF && (context.pathIndex == Config.DFIX))
                     {
                         if(context.previousPDF>0.6)
                         {
@@ -554,14 +553,14 @@ export class Scene {
                         }
                         return <vec3>[0,0,context.previousPDF+0.6];
                     }
-                    if(RENDER_BETA_LEN && (context.pathIndex == DFIX))
+                    if(Config.RENDER_BETA_LEN && (context.pathIndex == Config.DFIX))
                     {
                         const f = 1;
                         //return utils.scale(beta,1/f)
                         const subv = 1//3.5//1.9;
                         return utils.sub2(context.beta,utils.scale(utils.VECS.ONE,subv))
                     }
-                    if(context.pathIndex==DFIX)
+                    if(context.pathIndex==Config.DFIX)
                     {
                         /*
                         if( utils.closeTo(context.sample[0],0.1,0.005)){
@@ -572,19 +571,19 @@ export class Scene {
                         return L_Step;
                        if(false && length(L_Step)<0.2 && context.hits[0][0].instanceRef==5)
                        {
-                        console.log("radiance", {context, Le, L_Step, DFIX, hit, sample:context.sample, result:this.hasResult});
+                        console.log("radiance", {context, Le, L_Step, DFIX:Config.DFIX, hit, sample:context.sample, result:this.hasResult});
                         return L_Step;
                        }
                        //return utils.VECS.ONE;
                     }
-                    let L = DFIX<0 ? add2(context.L,L_Step):[0,0,0];
+                    let L = Config.DFIX<0 ? add2(context.L,L_Step):[0,0,0];
                     
                     if(true && utils.closeTo(context.sample[0],0.1,0.005) && context.hits[0][0].instanceRef==5)
                        {
                         //console.log("radiance", {context, Le, L_Step, DFIX, hit, sample:context.sample, result:this.hasResult});
                         //return L_Step;
                        }
-                    if (context.pathIndex==DFIX && debugSample(context)) {
+                    if (context.pathIndex==Config.DFIX && debugSample(context)) {
                         console.log("Trace", Le, context.L)
                         this.checkResult = [0, 0, 1];
                         return <vec3>[0,0,1];
@@ -611,7 +610,7 @@ export class Scene {
             //On Ray Miss
             (context:PipelineContext)=>{
                 //console.log("Miss", context);
-                if(FORCCE_MISS_DIRECTION) 
+                if(Config.FORCCE_MISS_DIRECTION) 
                 {
                     var ray = context.ray
                     var r = <vec3>[...ray.direction.map(v=>Math.abs(v))]
@@ -726,7 +725,7 @@ export class Scene {
         //console.log("Sample", context.sample)
         
         var countMiss = 0;
-        for(let i = 0; i<DMAX;++i){
+        for(let i = 0; i<Config.DMAX;++i){
             context.pathIndex=i;
             context.rays.push(context.ray);
             var hits:Hit[]=await ComputeIntersection(context.ray, context);
@@ -741,9 +740,9 @@ export class Scene {
                 //console.log("Hit", i, context.L);
             }
             if(context.stop) break;
-            if(i==DFIX)break;
+            if(i==Config.DFIX)break;
         }
-        if(FORCCE_MISS_DIRECTION)context.L = countMiss>0?context.L:utils.VECS.ZERO;
+        if(Config.FORCCE_MISS_DIRECTION)context.L = countMiss>0?context.L:utils.VECS.ZERO;
         output[sampleNumber] = context.L;
     }
     NormalToGlobal(n: vec3, sample: vec3): vec3 {
@@ -771,7 +770,7 @@ export class Scene {
         return M;
     }
     getLightSamples(): LightSample[]  {
-        let nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
+        let nsamples = Config.DEFAULT_LIGHT_SAMPLE_COUNT;
         return Array(nsamples).fill({}).map((_,i)=>this.getLightSample())
     }
     getLightRadianceFromSamples(samples:LightSample[], interaction:Interaction, rayOrigin:Ray, mat:Material): vec3 {
@@ -829,7 +828,7 @@ export class Scene {
         }
     }
     getLightRadiance(hitOrigin:Hit, rayOrigin:Ray, mat:Material): vec3 {
-        let nsamples = DEFAULT_LIGHT_SAMPLE_COUNT;
+        let nsamples = Config.DEFAULT_LIGHT_SAMPLE_COUNT;
         let c:vec3 = [0,0,0]
         if(false)
         {
@@ -993,7 +992,7 @@ export class Scene {
             return true;
         }
 
-        if (true && sampleBetween(ray, LIMITS[0], LIMITS[1], LIMITS[2], LIMITS[3])) {
+        if (true && sampleBetween(ray, Config.LIMITS[0], Config.LIMITS[1], Config.LIMITS[2], Config.LIMITS[3])) {
 
             this.checkResult = [0, 1, 0];
             return true;
@@ -1026,18 +1025,18 @@ export class Scene {
             cxt.checkResult = utils.VECS.ZERO
             return true;
         }
-        if (FORCCE_HIT_ON_VERTEX && hit?.hit?.forceOnVertex) {
+        if (Config.FORCCE_HIT_ON_VERTEX && hit?.hit?.forceOnVertex) {
 
             cxt.checkResult = [1, 0, 0];
             return true
         }
         
-        if (FORCCE_HIT_MAT_CODE && hit && hit?.hit!.instanceRef > 0) {
+        if (Config.FORCCE_HIT_MAT_CODE && hit && hit?.hit!.instanceRef > 0) {
             //return <vec3>[0,0,1]
             cxt.checkResult = calculateHitCode(hit?.hit!.instanceRef)
             return true
         }
-        if ((FORCCE_RAY_HIT_MAT_CODE==code) ) {
+        if ((Config.FORCCE_RAY_HIT_MAT_CODE==code) ) {
             if(hit?.hit && hit?.hit!.instanceRef > 0)
                 //this.checkResult = <vec3>[0,0,1]
                 cxt.checkResult = calculateHitCode(hit.hit!.instanceRef)
@@ -1049,13 +1048,13 @@ export class Scene {
         return false;
     }
     lightCheck(ns:vec3, wi:vec3, factorNumerator:number){
-        if(FORCCE_L_HIT_N)
+        if(Config.FORCCE_L_HIT_N)
         {
             this.hasResult = true;
             this.checkResult = utils.scale([1,0,0],dot(ns, minus(wi)))//.map(v=>Math.abs(v));
             return true;
         }
-        if(FORCCE_LIGHT_FACTOR)
+        if(Config.FORCCE_LIGHT_FACTOR)
         {
             this.hasResult = true;
             wi = [1,0,0]
@@ -1063,7 +1062,7 @@ export class Scene {
             this.checkResult =  utils.scale(wi,factorNumerator);
             return true;
         }
-        if(FORCCE_WI_MAT)
+        if(Config.FORCCE_WI_MAT)
         {
             this.hasResult = true;
             var r = wi.map(v=>Math.abs(v)) as vec3;
@@ -1087,7 +1086,7 @@ export class Scene {
     AddPonctualLight(light: PontualLight) {
         //this.lightSources.push(light);
         light.Potencia = sub2(light.Potencia, this.ambientLight);
-        const scale = PONTUAL_LIGHT_RADIUS;
+        const scale = Config.PONTUAL_LIGHT_RADIUS;
         const position = light.Position;
         //const position:vec3 = [0,2,1]
         var transform = Transform.fromScaleAndTranslation(position, scale, scale, scale);
@@ -1114,6 +1113,10 @@ export class Scene {
 
         return;
     }
+    clearScene(){
+        this.instances = []
+        this.tester.clear();
+    }
     //root:AccNode = {}
     instances: EntityInstance[] = []
     get lights(): EntityInstance[] {
@@ -1133,7 +1136,7 @@ export class Scene {
 
     ComputeIntersection(ray: Ray, ignoreNegative:boolean=true,ignoreBackface:boolean=true,ignoreEpslon:boolean = true, context:any={}): Interaction[]  {
         if (verbose) console.log("Compute Intersections in Scene and ray", ray);
-        const v2 = sampleBetween2(this.Sample, LIMITS[0], LIMITS[1], LIMITS[2], LIMITS[3]);
+        const v2 = sampleBetween2(this.Sample, Config.LIMITS[0], Config.LIMITS[1], Config.LIMITS[2], Config.LIMITS[3]);
         //var t = Infinity;
         //var p: vec3 = [0, 0, 0];
         //var n: vec3 = [0, 0, 0];
@@ -1153,6 +1156,7 @@ export class Scene {
         this.tester.ignoreNegativeValues=ignoreNegative;
         this.tester.ignoreEpslon=ignoreEpslon;
         //setVerbose(debugSample(this));
+        //setVerbose(true);
         context = {}
         var bestHit = this.tester.Test(ray, context);
         if (verbose) console.log("bestHit", ray, bestHit);
