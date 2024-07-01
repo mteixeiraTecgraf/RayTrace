@@ -2,6 +2,8 @@ CONFIG:
   scene_name: "Example Scene"
   background_color: "#000000"
   render_quality: "high"
+  render_Material_Color: false
+  render_normal: true
   resolution:
     W: 100
     H: 100

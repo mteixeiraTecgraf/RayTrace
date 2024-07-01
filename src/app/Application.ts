@@ -41,11 +41,12 @@ export class Application{
       this.H = sceneContent.CONFIG.resolution.H  
     }
     Config.FORCCE_HIT_MAT_CODE = sceneContent.CONFIG.render_Material_Color;
+    Config.FORCCE_NORMAL = sceneContent.CONFIG.render_normal;
   }
   async testLoadSceneYML(scene:Scene) {
     console.log("Loading Scene Yaml ")
     var sceneContent = YamlParser.parseYaml(this.textBox)
-    sceneContent.SCENE.entities.forEach(e=>{
+    let tasks = sceneContent.SCENE.entities.map(async e=>{
       var light:Light|undefined = undefined;
       var material:Material|undefined = undefined
       if(e.LIGHT){
@@ -82,6 +83,7 @@ export class Application{
         
       }
       var shape:Shape
+      let offData:any = undefined
       switch(e.SHAPE.TYPE)
       {
         case 'Sphere':
@@ -91,6 +93,11 @@ export class Application{
           break;
         case 'Box':
           shape = new Box()
+          break;
+        case 'MeshOFF':
+          offData = await this.loadOff(e.SHAPE['filename']);
+          //shape = new Vertex(t.v[p[0]],t.v[p[1]], t.v[p[2]]), 
+          shape = new Sphere;
           break;
         default:
           shape = new Sphere()
@@ -120,19 +127,26 @@ export class Application{
         transform = Transform.fromPipe(...pipe);
         //Transform.fromPipe(translate([0,0,1]))); 
       }
-      scene.AddEntity(
-        createTransformed(
-          createPrimitive(
-            {name:e.NAME,
-              light,
-              material, 
-              shape
-            }), 
-            transform
+      if(!offData)
+      { 
+        scene.AddEntity(
+          createTransformed(
+            createPrimitive(
+              {name:e.NAME,
+                light,
+                material, 
+                shape
+              }), 
+              transform
+            )
           )
-        )
+      }
+      else
+        await this.addMesh(scene, offData.v, offData.p, transform, material)
 
     })
+
+    await Promise.all(tasks)
 
     sceneContent.SCENE.CAMERA?.ACTIONS?.forEach(action=>{
       console.log("Running Action ", action)
@@ -632,7 +646,7 @@ export class Application{
     const v1 = add2(o,e1);
     return [o,v1,add2(v1,e2), add2(o,e2)]
   }
-  async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform(), material2 = new PhongMaterial([0,1,1],[1,1,1],20)) {
+  async addMesh(scene: Scene, vertexes:vec3[], polygon:[number,number,number][], transform:Transform = new Transform(), material2:Material = new PhongMaterial([0,1,1],[1,1,1],20)) {
     //const material2 = new PhongMaterial([0,1,1],[1,1,1],20);
     //const material2 = new PhongMetal(new PhongMaterial([0,1,1],[1,1,1],20),0);
     //const material2 = new TextureMaterial("/assets/brick-texture-png-23870.png");
@@ -642,7 +656,13 @@ export class Application{
     for(let p of polygon)
     {
       //console.log("Vertex", p, vertexes);
-      scene.AddEntity(createTPrimitive({name:`vertice ${p[0]} ${p[1]} ${p[2]}`,shape: new Vertex(vertexes[p[0]],vertexes[p[1]], vertexes[p[2]]), transform:transform, material:material2}))
+      scene.AddEntity(createTPrimitive(
+      {
+        name:`vertice ${p[0]} ${p[1]} ${p[2]}`,
+        shape: new Vertex(vertexes[p[0]],vertexes[p[1]], vertexes[p[2]]), 
+        transform:transform, 
+        material:material2
+      }))
     }
     console.log("Mesh Complete");
   }
